@@ -18,6 +18,7 @@ underlying_disease <- DBI::dbGetQuery(conn, "SELECT * FROM patients_underlyingdi
 cardiopathy <- DBI::dbGetQuery(conn, "SELECT * FROM patients_cardiopathy")
 device_testing_info <- DBI::dbGetQuery(conn, "SELECT * FROM patients_devicetestinginfo")
 ventilation_type <- DBI::dbGetQuery(conn, "SELECT * FROM patients_ventilationtype")
+breath_and_sleep_test <- DBI::dbGetQuery(conn, "SELECT * FROM patients_breathandsleeptest")
 
 
 
@@ -25,6 +26,12 @@ characteristics <- DBI::dbGetQuery(
   conn = conn,
   statement = "SELECT * FROM patients_patientcharacteristics"
 )
+
+
+breath_and_sleep_test_overall <- breath_and_sleep_test |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::relocate(pat_id_id, visit_id, visit_date)
 
 characteristics_overall <- characteristics |>
   dplyr::select(-id) |>
@@ -37,6 +44,10 @@ characteristics_overall <- characteristics |>
   dplyr::left_join(
     patients_overall |> dplyr::select(id, age, gender),
     by = c("pat_id_id" = "id")
+  ) |>
+  dplyr::left_join(
+    breath_and_sleep_test_overall |> dplyr::select(visit_id, ahirdi_br),
+    by = "visit_id"
   )
 
 # This returns a data frame with 6200 patients
@@ -95,6 +106,17 @@ bmi_subgroup_definition <- function(data, variable_name = "bmi") {
       result = dplyr::case_when(
         get(variable_name) >= 25 ~ "BMI >= 25",
         get(variable_name) < 25 ~ "BMI < 25"
+      )
+    )
+}
+
+ahirdi_subgroup_definition <- function(data, variable_name = "ahirdi_br") {
+  data |>
+    dplyr::mutate(
+      result = dplyr::case_when(
+        get(variable_name) < 15 ~ "AHI_RDI < 15",
+        get(variable_name) < 30 ~ "15 <= AHI_RDI < 30",
+        get(variable_name) >= 30 ~ "AHI_RDI > 30",
       )
     )
 }
@@ -335,3 +357,47 @@ subgroup_settings <- list(
 )
 device_sayy_first_visit |>
   count_subgroups(subgroup_settings)
+
+
+
+
+
+
+ahirdi_subgroup_definition <- function(data, variable_name = "ahirdi_br") {
+  data |>
+    dplyr::mutate(
+      result = dplyr::case_when(
+        is.na(get(variable_name)) ~ "Missing",
+        get(variable_name) < 15 ~ "AHI_RDI < 15",
+        get(variable_name) < 30 ~ "15 <= AHI_RDI < 30",
+        get(variable_name) >= 30 ~ "AHI_RDI > 30",
+      )
+    ) |>
+    dplyr::mutate(
+      result = factor(
+        x = result,
+        levels = c("Missing", "AHI_RDI < 15",
+                   "15 <= AHI_RDI < 30", "AHI_RDI > 30")
+      )
+    )
+}
+
+subgroup_settings <- list(
+  gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  ),
+  bmi = create_subgroup_settings(
+    variable_name = "bmi",
+    subgroup_label = "bmi_condition",
+    subgroup_definition = bmi_subgroup_definition
+  ),
+  ahi_rdi = create_subgroup_settings(
+    variable_name = "ahirdi_br",
+    subgroup_label = "ahi_rdi_condition",
+    subgroup_definition = ahirdi_subgroup_definition
+  )
+)
+
+characteristics_sayy_first_visit |>
+  count_subgroups_with_percentage(subgroup_settings, target_variable = "ahi_rdi_condition")
