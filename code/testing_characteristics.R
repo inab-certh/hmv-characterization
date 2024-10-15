@@ -1,5 +1,5 @@
-source("connection.R")
-source("helper.R")
+source("code/connection.R")
+source("code/helper.R")
 
 
 patients <- DBI::dbGetQuery(conn, "SELECT * FROM patients_patient")
