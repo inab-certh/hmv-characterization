@@ -1,0 +1,149 @@
+---
+title: "Αναφορά ανάλυσης δεδομένων ασθενών με ΣΑΥΥ"
+execute: 
+  cache: false
+format:
+  html: default
+---
+
+```{r source, eval=TRUE, echo=FALSE, warning=FALSE}
+options(digits = 3)
+source("code/connection.R")
+source("code/load_tables.R")
+source("code/helper.R")
+```
+
+```{r subgroup_settings, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+gender_subgroup_settings = create_subgroup_settings(
+  variable_name = "gender",
+  subgroup_label = "gender"
+)
+
+bmi_subgroup_definition <- function(data, variable_name = "bmi") {
+  data |>
+    dplyr::mutate(
+      result = dplyr::case_when(
+        get(variable_name) >= 25 ~ "BMI >= 25",
+        get(variable_name) < 25 ~ "BMI < 25"
+      )
+    )
+}
+
+bmi_subgroup_settings = create_subgroup_settings(
+  variable_name = "bmi",
+  subgroup_label = "bmi_condition",
+  subgroup_definition = bmi_subgroup_definition
+)
+age_subgroup_settings = create_subgroup_settings(
+  variable_name = "age_groups",
+  subgroup_label = "age_groups"
+)
+```
+
+```{r data_initial_manipulation, eval=TRUE, echo=FALSE, warning=TRUE}
+
+patients_overall <- patients |>
+  dplyr::left_join(gender, by = c("gender_id" = "id")) |>
+  dplyr::left_join(profession, by = c("profession_id" = "id")) |>
+  dplyr::left_join(education, by = c("education_id" = "id")) |>
+  dplyr::left_join(condition, by = c("pat_condition_id" = "id")) |>
+  dplyr::select(-c(education_id, gender_id, profession_id, pat_condition_id)) |>
+  dplyr::mutate(
+    ma_subscription_date = lubridate::as_date(ma_subscription_date),
+    age = lubridate::year(ma_subscription_date) - birth_year
+  )
+
+
+patients_sayy <- patients_overall |>
+  dplyr::filter(pat_condition == "ΣΑΥΥ") |> 
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΛΛΟ", "ΑΓΝΩΣΤΟ")
+    )
+  )
+
+breath_and_sleep_test_overall <- breath_and_sleep_test |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::relocate(pat_id_id, visit_id, visit_date)
+
+
+characteristics_overall <- characteristics |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::relocate(pat_id_id, visit_id, visit_date) |>
+  dplyr::mutate(
+    bmi = weight / (height / 100) ** 2
+  ) |>
+  dplyr::relocate(bmi, .after = height) |>
+  dplyr::left_join(
+    patients_overall |> dplyr::select(id, age, gender),
+    by = c("pat_id_id" = "id")
+  ) |>
+  dplyr::left_join(
+    breath_and_sleep_test_overall |> dplyr::select(visit_id, ahirdi_br),
+    by = "visit_id"
+  )
+
+# This returns a data frame with 6200 patients
+characteristics_sayy <- characteristics_overall |>
+  dplyr::filter(pat_id_id %in% patients_sayy$id)
+
+characteristics_sayy_first_visit <- characteristics_sayy |>
+  dplyr::group_by(pat_id_id) |>
+  dplyr::arrange(visit_date) |>
+  dplyr::slice_head(n = 1)
+
+
+# patient_ventilation_overall <- patient_ventilation |>
+#   dplyr::left_join(visit, by = c("visit_id" = "id"))
+# 
+# patient_ventilation_first_visit <- patient_ventilation_overall |> 
+#   dplyr::filter(pat_id_id %in% patients_mv$id) |> 
+#   dplyr::select(-id) |> 
+#   dplyr::left_join(patients_mv, by = c("pat_id_id" = "id")) |> 
+#   dplyr::group_by(pat_id_id) |>
+#   dplyr::arrange(visit_date) |>
+#   dplyr::slice_head(n = 1) |> 
+#   dplyr::ungroup() |> 
+#   dplyr::relocate(pat_id_id, pat_id, visit_date)
+  
+```
+
+```{r gender_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(gender_subgroup_settings)
+result <- count_subgroups_with_percentage(
+  data = patients_sayy,
+  subgroup_settings = subgroup_settings,
+  target_variable = "gender"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+gender_distribution <- result
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PA1_gender_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result |> dplyr::mutate(percentage = percentage  / 100),
+  caption = "Ποσοστά φύλου στους ασθενείς με μηχανικό αερισμό."
+) |> 
+  gtExtras::gt_plt_bar(
+    column = percentage,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "percent",
+    accuracy = .1
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+
+```
