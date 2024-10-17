@@ -19,21 +19,26 @@ gender_subgroup_settings = create_subgroup_settings(
   subgroup_label = "gender"
 )
 
-bmi_subgroup_definition <- function(data, variable_name = "bmi") {
-  data |>
-    dplyr::mutate(
-      result = dplyr::case_when(
-        get(variable_name) >= 25 ~ "BMI >= 25",
-        get(variable_name) < 25 ~ "BMI < 25"
-      )
-    )
-}
-
 bmi_subgroup_settings = create_subgroup_settings(
   variable_name = "bmi",
   subgroup_label = "bmi_condition",
-  subgroup_definition = bmi_subgroup_definition
+  subgroup_definition = create_dynamic_categorize_settings(
+    column = "bmi",
+    cutoffs = c(25, 30),
+    category_names = c("bmi <= 25", "25 < bmi <= 30", "bmi > 30")
+  )
 )
+
+ahirdi_subgroup_settings = create_subgroup_settings(
+  variable_name = "ahirdi_br",
+  subgroup_label = "ahirdi_condition",
+  subgroup_definition = create_dynamic_categorize_settings(
+    column = "ahirdi_br",
+    cutoffs = c(15, 30),
+    category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
+  )
+)
+
 age_subgroup_settings = create_subgroup_settings(
   variable_name = "age_groups",
   subgroup_label = "age_groups"
@@ -96,20 +101,6 @@ characteristics_sayy_first_visit <- characteristics_sayy |>
   dplyr::arrange(visit_date) |>
   dplyr::slice_head(n = 1)
 
-
-# patient_ventilation_overall <- patient_ventilation |>
-#   dplyr::left_join(visit, by = c("visit_id" = "id"))
-# 
-# patient_ventilation_first_visit <- patient_ventilation_overall |> 
-#   dplyr::filter(pat_id_id %in% patients_mv$id) |> 
-#   dplyr::select(-id) |> 
-#   dplyr::left_join(patients_mv, by = c("pat_id_id" = "id")) |> 
-#   dplyr::group_by(pat_id_id) |>
-#   dplyr::arrange(visit_date) |>
-#   dplyr::slice_head(n = 1) |> 
-#   dplyr::ungroup() |> 
-#   dplyr::relocate(pat_id_id, pat_id, visit_date)
-  
 ```
 
 ```{r gender_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
@@ -132,17 +123,164 @@ readr::write_csv(
 )
 
 gt::gt(
-  data = result |> dplyr::mutate(percentage = percentage  / 100),
-  caption = "Ποσοστά φύλου στους ασθενείς με μηχανικό αερισμό."
+  data = result |> 
+    dplyr::mutate(percentage_lab = paste0(round(percentage, 2), "%")) |> 
+    dplyr::relocate(percentage_lab, .before = percentage),
+  caption = "Κατανομή BMI σε ασθενείς με ΣΑΥΥ."
 ) |> 
+  gt::cols_label(
+    gender = "Φύλο",
+    n = "Ν",
+    percentage_lab = "%",
+    percentage = ""
+  ) |> 
+  gt::cols_align(align = "left", columns = "gender") |> 
   gtExtras::gt_plt_bar(
     column = percentage,
     width = 80,
     font_size = "12px",
     labels = TRUE,
     color = "forestgreen",
-    scale_type = "percent",
-    accuracy = .1
+    accuracy = 0.1,
+    text_position = "outside-end"
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+
+
+```
+
+```{r bmi_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(bmi_subgroup_settings)
+result <- count_subgroups_with_percentage(
+  data = characteristics_sayy_first_visit,
+  subgroup_settings = subgroup_settings,
+  target_variable = "bmi_condition"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PA1_bmi_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result |> 
+    dplyr::mutate(percentage_lab = paste0(round(percentage, 2), "%")) |> 
+    dplyr::relocate(percentage_lab, .before = percentage),
+  caption = "Κατανομή BMI σε ασθενείς με ΣΑΥΥ."
+) |> 
+  gt::cols_label(
+    bmi_condition = "Επίπεδα ΒΜΙ",
+    n = "Ν",
+    percentage_lab = "%",
+    percentage = ""
+  ) |> 
+  gt::cols_align(align = "left", columns = "bmi_condition") |> 
+  gtExtras::gt_plt_bar(
+    column = percentage,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    accuracy = 0.1,
+    text_position = "outside-end"
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+
+```
+
+```{r ahi_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(
+  ahi = ahirdi_subgroup_settings
+)
+result <- count_subgroups_with_percentage(
+  data = characteristics_sayy_first_visit,
+  subgroup_settings = subgroup_settings,
+  target_variable = "ahirdi_condition"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PA1_bmi_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result |> 
+    dplyr::mutate(percentage_lab = paste0(round(percentage, 2), "%")) |> 
+    dplyr::relocate(percentage_lab, .before = percentage),
+  caption = "Κατανομή BMI σε ασθενείς με ΣΑΥΥ."
+) |> 
+  gt::cols_label(
+    ahirdi_condition = "Επίπεδα AHIRDI",
+    n = "Ν",
+    percentage_lab = "%",
+    percentage = ""
+  ) |> 
+  gt::cols_align(align = "left", columns = "ahirdi_condition") |> 
+  gtExtras::gt_plt_bar(
+    column = percentage,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    accuracy = 0.1,
+    text_position = "outside-end"
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+
+```
+
+```{r gender_bmi_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(
+  gender = gender_subgroup_settings,
+  bmi = bmi_subgroup_settings
+)
+result <- count_subgroups_with_percentage(
+  data = characteristics_sayy_first_visit,
+  subgroup_settings = subgroup_settings,
+  target_variable = "bmi_condition"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PA1_bmi_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result |> 
+    dplyr::mutate(percentage_lab = paste0(round(percentage, 2), "%")) |> 
+    dplyr::relocate(percentage_lab, .before = percentage),
+  caption = "Κατανομή BMI σε ασθενείς με ΣΑΥΥ."
+) |> 
+  gt::cols_label(
+    bmi_condition = "Επίπεδα ΒΜΙ",
+    n = "Ν",
+    percentage_lab = "%",
+    percentage = ""
+  ) |> 
+  gt::cols_align(align = "left", columns = "bmi_condition") |> 
+  gtExtras::gt_plt_bar(
+    column = percentage,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    accuracy = 0.1,
+    text_position = "outside-end"
   ) |>  
   gt::tab_options(table.width = gt::pct(100))
 
