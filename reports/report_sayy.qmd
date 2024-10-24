@@ -64,6 +64,10 @@ alcohol_subgroup_settings <- create_subgroup_settings(
   variable_name = "alcohol_status",
   subgroup_label = "alcohol_status"
 )
+underlying_disease_subgroup_settings <- create_subgroup_settings(
+  variable_name = "underlying_disease",
+  subgroup_label = "underlying_disease"
+)
 ```
 
 ```{r data_initial_manipulation, eval=TRUE, echo=FALSE, warning=TRUE}
@@ -97,7 +101,7 @@ breath_and_sleep_test_overall <- breath_and_sleep_test |>
   dplyr::relocate(pat_id_id, visit_id, visit_date)
 
 
-characteristics_overall <- characteristics |>
+characteristics_overall_first_visit <- characteristics |>
   dplyr::select(-id) |>
   dplyr::left_join(visit, by = c("visit_id" = "id")) |>
   dplyr::relocate(pat_id_id, visit_id, visit_date) |>
@@ -116,29 +120,22 @@ characteristics_overall <- characteristics |>
   dplyr::left_join(bad_habit, by = c("smoker_id" = "id")) |> 
   dplyr::rename("smoker_status" = "bad_habit_status") |> 
   dplyr::left_join(bad_habit, by = c("alcohol_id" = "id")) |> 
-  dplyr::rename("alcohol_status" = "bad_habit_status")
-
-# This returns a data frame with 6200 patients
-# characteristics_sayy <- characteristics_overall |>
-#   dplyr::filter(pat_id_id %in% patients_sayy$id)
-
-# characteristics_sayy_first_visit <- characteristics_sayy |>
-#   dplyr::group_by(pat_id_id) |>
-#   dplyr::arrange(visit_date) |>
-#   dplyr::slice_head(n = 1)
-
-characteristics_sayy_first_visit <- patients_sayy |> 
-  dplyr::select(id, gender, age) |>
-  dplyr::left_join(characteristics_overall, by = c("id" = "pat_id_id")) |> 
-  dplyr::mutate(
-    gender = tidyr::replace_na(gender, "ΑΓΝΩΣΤΟ"),
-    smoker_status = tidyr::replace_na(smoker_status, "ΑΓΝΩΣΤΟ"),
-    alcohol_status = tidyr::replace_na(alcohol_status, "ΑΓΝΩΣΤΟ")
-  ) |> 
-  dplyr::group_by(id) |>
+  dplyr::rename("alcohol_status" = "bad_habit_status") |> 
+  dplyr::left_join(underlying_disease, by = c("underlying_disease_id" = "id")) |> 
+  dplyr::rename("underlying_disease" = "disease") |> 
+  dplyr::group_by(pat_id_id) |>
   dplyr::arrange(visit_date) |>
-  dplyr::slice_head(n = 1)
+  dplyr::slice_head(n = 1) 
 
+characteristics_sayy_first_visit_adult <- patients_sayy |> 
+  dplyr::select(id, gender, age) |>
+  dplyr::filter(age >= 18) |> 
+  dplyr::left_join(characteristics_overall_first_visit, by = c("id" = "pat_id_id")) |> 
+  dplyr::mutate(
+    smoker_status = tidyr::replace_na(smoker_status, "ΑΓΝΩΣΤΟ"),
+    alcohol_status = tidyr::replace_na(alcohol_status, "ΑΓΝΩΣΤΟ"),
+    underlying_disease = tidyr::replace_na(underlying_disease, "ΑΓΝΩΣΤΟ")
+  )  
 ```
 
 ```{r gender_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
@@ -876,9 +873,6 @@ subgroup_settings <- list(
   alcohol = alcohol_subgroup_settings
 )
 
-characteristics_sayy_first_visit_adult <- characteristics_sayy_first_visit |> 
-  dplyr::filter(age >= 18)
-
 result <- count_subgroups_with_percentage(
   data = characteristics_sayy_first_visit_adult,
   subgroup_settings = subgroup_settings,
@@ -928,9 +922,6 @@ subgroup_settings <- list(
   alcohol = alcohol_subgroup_settings
 )
 
-characteristics_sayy_first_visit_adult <- characteristics_sayy_first_visit |> 
-  dplyr::filter(age >= 18)
-
 result <- count_subgroups_with_percentage(
   data = characteristics_sayy_first_visit_adult,
   subgroup_settings = subgroup_settings,
@@ -971,4 +962,98 @@ gt::gt(
     text_position = "outside-end"
   ) |>  
   gt::tab_options(table.width = gt::pct(100))
+```
+
+## ΠΑ3 - Underlying_disease
+```{r underlying_disease_distribution, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+subgroup_settings <- list(underlying_disease = underlying_disease_subgroup_settings)
+
+result <- count_subgroups_with_percentage(
+  data = characteristics_sayy_first_visit_adult,
+  subgroup_settings = subgroup_settings,
+  target_variable = "underlying_disease"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PA3_underlying_disease_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result |> 
+    dplyr::mutate(percentage_lab = paste0(round(percentage, 2), "%")) |> 
+    dplyr::relocate(percentage_lab, .before = percentage),
+  caption = "Caption..."
+) |> 
+  gt::cols_label(
+    underlying_disease = "Υποκείμενο νόσημα",
+    n = "Ν",
+    percentage_lab = "%",
+    percentage = ""
+  ) |> 
+  gt::cols_align(align = "left", columns = c("underlying_disease")) |> 
+  gtExtras::gt_plt_bar(
+    column = percentage,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    accuracy = 0.1,
+    text_position = "outside-end"
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+
+```
+
+```{r underlying_disease_gender_distribution, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+subgroup_settings <- list(
+  gender = gender_subgroup_settings,
+  underlying_disease = underlying_disease_subgroup_settings
+)
+
+result <- count_subgroups_with_percentage(
+  data = characteristics_sayy_first_visit_adult,
+  subgroup_settings = subgroup_settings,
+  target_variable = "underlying_disease"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PA3_underlying_disease_gender_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result |> 
+    dplyr::mutate(percentage_lab = paste0(round(percentage, 2), "%")) |> 
+    dplyr::relocate(percentage_lab, .before = percentage),
+  caption = "Caption..."
+) |> 
+  gt::cols_label(
+    underlying_disease = "Υποκείμενο νόσημα",
+    n = "Ν",
+    percentage_lab = "%",
+    percentage = ""
+  ) |> 
+  gt::cols_align(align = "left", columns = c("underlying_disease")) |> 
+  gtExtras::gt_plt_bar(
+    column = percentage,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    accuracy = 0.1,
+    text_position = "outside-end"
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+
 ```

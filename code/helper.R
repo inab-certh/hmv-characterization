@@ -72,12 +72,13 @@ count_subgroups <- function(data, subgroup_settings) {
         ) |>
         dplyr::rename("{subgroup_settings[[i]]$subgroup_label}" := "result")
     }
-    targeted_subgroups[[i]] <- subgroup_settings[[i]]$subgroup_label
+    targeted_subgroups[i] <- subgroup_settings[[i]]$subgroup_label
   }
 
   data |>
     dplyr::group_by(dplyr::across(targeted_subgroups)) |>
-    dplyr::summarise(n = dplyr::n())
+    dplyr::summarise(n = dplyr::n()) |>
+    dplyr::arrange(dplyr::across(targeted_subgroups))
 }
 
 count_within_subgroups <- function(data, subgroup_settings, count_variable) {
@@ -161,7 +162,7 @@ count_subgroups_with_percentage <- function(data, subgroup_settings, target_vari
         ) |>
         dplyr::rename("{subgroup_settings[[i]]$subgroup_label}" := "result")
     }
-    targeted_subgroups[[i]] <- subgroup_settings[[i]]$subgroup_label
+    targeted_subgroups[i] <- subgroup_settings[[i]]$subgroup_label
   }
 
   subgroups_without_target_variable <- targeted_subgroups[-which(targeted_subgroups == target_variable)]

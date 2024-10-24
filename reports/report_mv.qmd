@@ -10,9 +10,9 @@ format:
 
 ```{r source, eval=TRUE, echo=FALSE, warning=FALSE}
 options(digits = 3)
-source("code/connection.R")
-source("code/load_tables.R")
-source("code/helper.R")
+source("../code/connection.R")
+source("../code/load_tables.R")
+source("../code/helper.R")
 ```
 
 ```{r subgroup_settings, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
