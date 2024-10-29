@@ -2,6 +2,10 @@
 
 source("code/connection.R")
 source("code/load_tables.R")
+
+
+
+
 patients_overall <- patients |>
   dplyr::left_join(gender, by = c("gender_id" = "id")) |>
   dplyr::left_join(profession, by = c("profession_id" = "id")) |>
@@ -60,12 +64,17 @@ characteristics_overall_first_visit <- characteristics |>
 characteristics_sayy_first_visit_adult <- patients_sayy |>
   dplyr::select(id, gender, age) |>
   dplyr::filter(age >= 18) |>
-  dplyr::left_join(characteristics_overall_first_visit, by = c("id" = "pat_id_id")) |>
+  dplyr::left_join(
+    characteristics_overall_first_visit,
+    by = c("id" = "pat_id_id")
+  ) |>
   dplyr::mutate(
     smoker_status = tidyr::replace_na(smoker_status, "ΑΓΝΩΣΤΟ"),
     alcohol_status = tidyr::replace_na(alcohol_status, "ΑΓΝΩΣΤΟ"),
     underlying_disease = tidyr::replace_na(underlying_disease, "ΑΓΝΩΣΤΟ")
-  )
+  ) |>
+  dplyr::left_join(cardiopathy, by = c("cardiopathies_id" = "id")) |>
+  dplyr::mutate(cardiopathy = tidyr::replace_na(cardiopathy, "ΑΓΝΩΣΤΟ"))
 
 
 patient_ventilation_overall_first_visit <- patient_ventilation |>
@@ -92,6 +101,45 @@ characteristics_mv_first_visit <- patients_mv |>
     underlying_disease = tidyr::replace_na(underlying_disease, "ΑΓΝΩΣΤΟ")
   )
 
+
+device_testing_info_overall_first_visit<- device_testing_info |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::group_by(pat_id_id) |>
+  dplyr::arrange(visit_date) |>
+  dplyr::slice_head(n = 1)
+
+device_testing_info_overall_first_visist_adult <- patients_sayy |>
+  dplyr::select(id, gender, age) |>
+  dplyr::filter(age >= 18) |>
+  dplyr::left_join(
+    device_testing_info_overall_first_visit,
+    by = c("id" = "pat_id_id")
+  ) |>
+  dplyr::left_join(mask_type, by = c("mask_type_id" = "id")) |>
+  dplyr::rename("mask_type" = "type") |>
+  dplyr::left_join(mv_type, by = c("ma_type_id" = "id")) |>
+  dplyr::rename("ma_type" = "type") |>
+  dplyr::left_join(device_selection, by = c("dev_sel_id" = "id")) |>
+  dplyr::rename("dev_sel_type" = "type") |>
+  dplyr::left_join(check_cause, by = c("check_cause_id" = "id")) |>
+  dplyr::rename("check_cause" = "cause") |>
+  dplyr::left_join(checked_by, by = c("checked_by_id" = "id")) |>
+  dplyr::rename("checked_by" = "by") |>
+  dplyr::mutate(
+    mask_type = tidyr::replace_na(mask_type, "ΑΓΝΩΣΤΟ"),
+    ma_type = tidyr::replace_na(ma_type, "ΑΓΝΩΣΤΟ"),
+    dev_sel_type = tidyr::replace_na(dev_sel_type, "ΑΓΝΩΣΤΟ"),
+    checked_by = tidyr::replace_na(checked_by, "ΑΓΝΩΣΤΟ"),
+    check_cause = tidyr::replace_na(check_cause, "ΑΓΝΩΣΤΟ")
+  ) |>
+  dplyr::select(
+    -c(
+      "mask_type_id", "ma_type_id", "dev_sel_id", "check_cause_id", "checked_by_id"
+    )
+  )
+
+
 readr::write_csv(
   patient_ventilation_overall_first_visit,
   "data/patient_ventilation_overall_first_visit.csv"
@@ -105,3 +153,10 @@ readr::write_csv(
   characteristics_sayy_first_visit_adult,
   "data/characteristics_sayy_first_visit_adult.csv"
 )
+
+readr::write_csv(
+  device_testing_info_overall_first_visist_adult,
+  "data/device_testing_info_overall_first_visist_adult.csv"
+)
+
+

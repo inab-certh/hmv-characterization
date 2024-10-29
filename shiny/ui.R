@@ -1,7 +1,7 @@
 shiny::shinyUI(
   shinydashboardPlus::dashboardPage(
     skin = "black",
-    title = "Simulations",
+    title = "Characterization",
     shinydashboard::dashboardHeader(
       title = "Characterization"
     ),
@@ -24,8 +24,11 @@ shiny::shinyUI(
         shiny::selectizeInput(
           inputId = "subgroup_variables",
           label = "Μεταβλητές ομαδοποίησης",
-          choices = c("gender", "bmi", "age", "ahirdi_br", "psg_ahirdi", "smoker_status",
-                      "alcohol_status", "underlying_disease"),
+          choices = c(
+            "gender", "bmi", "age", "ahirdi_br", "psg_ahirdi", "smoker_status",
+            "alcohol_status", "underlying_disease", "sd", "aee", "ay",
+            "cardiopathy"
+          ),
           selected = "gender",
           multiple = TRUE
         ),
@@ -33,8 +36,15 @@ shiny::shinyUI(
           inputId = "target_variable",
           label = "Μεταβλητή ενδιαφέροντος",
           choices = c("gender", "bmi_condition", "age_groups", "ahirdi_br_condition", "psg_ahirdi_condition", "smoker_status",
-                      "alcohol_status", "underlying_disease"),
+                      "alcohol_status", "underlying_disease", "sd", "aee", "ay",
+                      "cardiopathy"),
           selected = "gender"
+        ),
+        shiny::selectInput(
+          inputId = "analysis_table",
+          label = "Ανάλυση",
+          choices = c("characteristics", "device"),
+          selected = "characteristics"
         )
       )
     ),

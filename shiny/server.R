@@ -13,20 +13,30 @@ shiny::shinyServer(function(input, output,session) {
     return(result)
   })
 
+  current_base_dataset <- shiny::reactive({
+    if (input$analysis_table == "characteristics")
+      characteristics_sayy_first_visit_adult
+    else
+      device_testing_info_overall_first_visist_adult
+  })
+
   result_table <- shiny::reactive({
-    result <- count_subgroups_with_percentage(
-      data = characteristics_sayy_first_visit_adult,
-      subgroup_settings = subgroup_settings(),
-      target_variable = input$target_variable
-    ) |>
-      dplyr::ungroup()
+
+
+      result <- count_subgroups_with_percentage(
+        data = current_base_dataset(),
+        subgroup_settings = subgroup_settings(),
+        target_variable = input$target_variable
+      ) |>
+        dplyr::ungroup()
+
 
     result
   })
 
   output$subgroup_analysis <- DT::renderDataTable({
     form_table(result_table()) |>
-      formattable::as.datatable()
+      formattable::as.datatable(options = list(pageLength = 100))
   })
 
   output$download_data <- downloadHandler(
@@ -47,8 +57,45 @@ shiny::shinyServer(function(input, output,session) {
     }
   )
 
+
+  observeEvent(input$analysis_table, {
+    new_choices_subgroup_variables <- switch(
+      input$analysis_table,
+      characteristics = c(
+        "gender", "bmi", "age", "ahirdi_br", "psg_ahirdi", "smoker_status",
+        "alcohol_status", "underlying_disease", "sd", "aee", "ay", "cardiopathy"
+      ),
+      device = c(
+        "age", "gender", "mask_type", "ma_type", "humidifier", "dev_sel_type"
+      )
+    )
+
+    new_choices_target_variable <- switch(
+      input$analysis_table,
+      characteristics = c(
+        "gender", "bmi_condition", "age_groups","ahirdi_br_condition",
+        "psg_ahirdi_condition", "smoker_status", "alcohol_status",
+        "underlying_disease", "sd", "aee", "ay","cardiopathy"
+      ),
+      device = c(
+        "age_groups", "gender", "mask_type", "ma_type", "humidifier", "dev_sel_type"
+      )
+    )
+    # Update sub_choice with new choices based on main_choice
+    shiny::updateSelectizeInput(
+      session,
+      "subgroup_variables",
+      choices = new_choices_subgroup_variables
+    )
+    shiny::updateSelectInput(
+      session,
+      "target_variable",
+      choices = new_choices_target_variable
+    )
+  })
+
   shiny::observe(
-    print(paste(input$subgroup_variables, sep = "_" )))
+    print(result_table()))
 
 })
 
