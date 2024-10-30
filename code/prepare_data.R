@@ -140,6 +140,52 @@ device_testing_info_overall_first_visist_adult <- patients_sayy |>
   )
 
 
+breath_and_sleep_test_overall_first_visit <- breath_and_sleep_test |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::group_by(pat_id_id) |>
+  dplyr::arrange(visit_date) |>
+  dplyr::slice_head(n = 1)
+
+breath_and_sleep_test_overall_first_visit_adult <- patients_sayy |>
+  dplyr::select(id, gender, age) |>
+  dplyr::filter(age >= 18) |>
+  dplyr::left_join(
+    breath_and_sleep_test_overall_first_visit,
+    by = c("id" = "pat_id_id")
+  ) |>
+  dplyr::left_join(
+    characteristics_sayy_first_visit_adult |>
+      dplyr::select(id, bmi),
+    by = c("id" = "id")
+  ) |>
+  dplyr::relocate(
+    bmi,
+    .after = age
+  ) |>
+  dplyr::mutate(
+    study = dplyr::case_when(
+      overnight_oximetry == 1 ~ "overnight oxymetry",
+      level_three_rec == 1 ~ "level three rec",
+      polysomnography == 1 ~ "polysomnography",
+      is.na(overnight_oximetry) | is.na(level_three_rec) | is.na(polysomnography) ~ "ΑΓΝΩΣΤΟ",
+      TRUE ~ "none"
+    )
+  )
+
+patients_with_two_or_more_studies <-
+  breath_and_sleep_test_overall_first_visit_adult |>
+  dplyr::group_by(id) |>
+  dplyr::summarise(
+    n = sum(overnight_oximetry, level_three_rec, polysomnography)
+  ) |>
+  dplyr::filter(n > 1) |>
+  dplyr::pull(id)
+
+breath_and_sleep_test_overall_first_visit_adult <-
+  breath_and_sleep_test_overall_first_visit_adult |>
+  dplyr::filter(!(id %in% patients_with_two_or_more_studies))
+
 readr::write_csv(
   patient_ventilation_overall_first_visit,
   "data/patient_ventilation_overall_first_visit.csv"
@@ -159,4 +205,7 @@ readr::write_csv(
   "data/device_testing_info_overall_first_visist_adult.csv"
 )
 
-
+readr::write_csv(
+  breath_and_sleep_test_overall_first_visit_adult,
+  "data/breath_and_sleep_test_overall_first_visit_adult.csv"
+)

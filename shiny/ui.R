@@ -25,25 +25,27 @@ shiny::shinyUI(
           inputId = "subgroup_variables",
           label = "Μεταβλητές ομαδοποίησης",
           choices = c(
-            "gender", "bmi", "age", "ahirdi_br", "psg_ahirdi", "smoker_status",
-            "alcohol_status", "underlying_disease", "sd", "aee", "ay",
-            "cardiopathy"
+            "gender", "bmi_condition", "age_groups", "ahirdi_br", "psg_ahirdi",
+            "smoker_status", "alcohol_status", "underlying_disease", "sd",
+            "aee", "ay", "cardiopathy"
           ),
-          selected = "gender",
+          selected = NULL,
           multiple = TRUE
         ),
         shiny::selectInput(
           inputId = "target_variable",
           label = "Μεταβλητή ενδιαφέροντος",
-          choices = c("gender", "bmi_condition", "age_groups", "ahirdi_br_condition", "psg_ahirdi_condition", "smoker_status",
-                      "alcohol_status", "underlying_disease", "sd", "aee", "ay",
-                      "cardiopathy"),
-          selected = "gender"
+          choices = c(
+            "gender", "bmi_condition", "age_groups", "ahirdi_br_condition",
+            "psg_ahirdi_condition", "smoker_status", "alcohol_status",
+            "underlying_disease", "sd", "aee", "ay", "cardiopathy"
+          ),
+          selected = NULL
         ),
         shiny::selectInput(
           inputId = "analysis_table",
           label = "Ανάλυση",
-          choices = c("characteristics", "device"),
+          choices = c("characteristics", "device", "breath_and_sleep_test"),
           selected = "characteristics"
         )
       )
@@ -53,6 +55,7 @@ shiny::shinyUI(
         shinydashboard::tabItem(
           tabName = "sayy",
           DT::dataTableOutput("subgroup_analysis"),
+          shiny::uiOutput("dynamic_output"),
           shiny::downloadButton("download_data")
         ),
         shinydashboard::tabItem(

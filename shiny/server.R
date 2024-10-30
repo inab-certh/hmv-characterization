@@ -1,5 +1,4 @@
 shiny::shinyServer(function(input, output,session) {
-
   subgroup_settings <- shiny::reactive({
     result <- list()
     for (i in seq_along(input$subgroup_variables)) {
@@ -16,23 +15,36 @@ shiny::shinyServer(function(input, output,session) {
   current_base_dataset <- shiny::reactive({
     if (input$analysis_table == "characteristics")
       characteristics_sayy_first_visit_adult
-    else
+    else if (input$analysis_table == "device")
       device_testing_info_overall_first_visist_adult
+    else if (input$analysis_table == "breath_and_sleep_test") {
+      breath_and_sleep_test_overall_first_visist_adult |>
+      dplyr::filter(study != "ΑΓΝΩΣΤΟ")
+    }
   })
 
-  result_table <- shiny::reactive({
-
-
-      result <- count_subgroups_with_percentage(
-        data = current_base_dataset(),
-        subgroup_settings = subgroup_settings(),
-        target_variable = input$target_variable
-      ) |>
-        dplyr::ungroup()
-
-
-    result
-  })
+  result_table <- shiny::eventReactive(
+    list(subgroup_settings(),input$target_variable), {
+      if (input$analysis_table == "breath_and_sleep_test" &
+          input$target_variable %in% c("fvc_perc", "fev1_l", "fev_perc", "fev1_fvc")) {
+        result <- run_within_subgroups(
+          data = current_base_dataset(),
+          subgroup_settings = subgroup_settings(),
+          target_variable = input$target_variable,
+          fun = calculate_median_in_subgroup,
+          column = input$target_variable
+        )
+      } else {
+        result <- count_subgroups_with_percentage(
+          data = current_base_dataset(),
+          subgroup_settings = subgroup_settings(),
+          target_variable = input$target_variable
+        ) |>
+          dplyr::ungroup()
+      }
+      result
+    }
+  )
 
   output$subgroup_analysis <- DT::renderDataTable({
     form_table(result_table()) |>
@@ -43,7 +55,7 @@ shiny::shinyServer(function(input, output,session) {
     filename = function() {
       paste0(
         paste(
-          "data",
+          input$analysis_table,
           "subgroup",
           paste(input$subgroup_variables, collapse = "_"),
           "target",
@@ -57,19 +69,37 @@ shiny::shinyServer(function(input, output,session) {
     }
   )
 
+  observeEvent(input$subgroup_variables, {
+    selected_options <- input$subgroup_variables
+    if (input$analysis_table == "breath_and_sleep_test") {
+      selected_options <- c(
+        selected_options,
+        "fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc"
+      )
+    }
+    updateSelectInput(
+      session, "target_variable",
+      choices = selected_options,
+      selected = NULL
+    )
+  })
 
   observeEvent(input$analysis_table, {
     new_choices_subgroup_variables <- switch(
       input$analysis_table,
       characteristics = c(
-        "gender", "bmi", "age", "ahirdi_br", "psg_ahirdi", "smoker_status",
-        "alcohol_status", "underlying_disease", "sd", "aee", "ay", "cardiopathy"
+        "gender", "bmi_condition", "age_groups", "ahirdi_br_condition",
+        "psg_ahirdi_condition", "smoker_status", "alcohol_status",
+        "underlying_disease", "sd", "aee", "ay", "cardiopathy"
       ),
       device = c(
-        "age", "gender", "mask_type", "ma_type", "humidifier", "dev_sel_type"
+        "age_groups", "gender", "mask_type",
+        "ma_type", "humidifier","dev_sel_type"
+      ),
+      breath_and_sleep_test = c(
+        "study", "age_groups", "gender", "bmi_condition"
       )
     )
-
     new_choices_target_variable <- switch(
       input$analysis_table,
       characteristics = c(
@@ -78,20 +108,62 @@ shiny::shinyServer(function(input, output,session) {
         "underlying_disease", "sd", "aee", "ay","cardiopathy"
       ),
       device = c(
-        "age_groups", "gender", "mask_type", "ma_type", "humidifier", "dev_sel_type"
+        "age_groups", "gender", "mask_type",
+        "ma_type", "humidifier", "dev_sel_type"
+      ),
+      breath_and_sleep_test = c(
+        "study", "age_groups", "gender", "bmi_condition",
+        "fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc"
       )
     )
-    # Update sub_choice with new choices based on main_choice
     shiny::updateSelectizeInput(
       session,
       "subgroup_variables",
-      choices = new_choices_subgroup_variables
+      choices = new_choices_subgroup_variables,
+      selected = new_choices_subgroup_variables[1]
     )
     shiny::updateSelectInput(
       session,
       "target_variable",
-      choices = new_choices_target_variable
+      choices = new_choices_target_variable,
+      selected = new_choices_target_variable[1]
     )
+  })
+
+  output$dynamic_output <- shiny::renderUI({
+    variables <- c("fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc")
+    if (input$analysis_table == "breath_and_sleep_test" &
+        input$target_variable %in% variables) {
+      dd <- current_base_dataset() |>
+        dplyr::filter(study != "ΑΓΝΩΣΤΟ")
+      pp <- run_within_subgroups(
+        data = dd,
+        subgroup_settings = subgroup_settings(),
+        target_variable = input$target_variable,
+        fun = calculate_density,
+        column = input$target_variable
+      ) |>
+        tidyr::unnest(percentage)
+      x_index <- which(names(pp) == "x")
+      result_plot <- pp |>
+        dplyr::rowwise() |>
+        dplyr::mutate(
+          groups = paste(dplyr::c_across(1:(x_index - 1)), collapse = " + ")
+        ) |>
+        dplyr::ungroup() |>
+        dplyr::select(c(x, y, groups)) |>
+        ggplot2::ggplot(
+          ggplot2::aes(
+            x = x,
+            y = y,
+            color = groups,
+            fill = groups
+            )
+          ) +
+        ggplot2::geom_area(alpha = 0.5)
+        # ggplot2::geom_line()
+      shiny::renderPlot(result_plot)
+    }
   })
 
   shiny::observe(

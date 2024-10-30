@@ -81,6 +81,20 @@ device_testing_info_overall_first_visist_adult <-
       TRUE ~ "71+"
     )
   )
+breath_and_sleep_test_overall_first_visist_adult <-
+  readr::read_csv("data/breath_and_sleep_test_overall_first_visit_adult.csv") |>
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "ΑΓΝΩΣΤΟ",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  )
 
 
 
@@ -89,7 +103,7 @@ gender_subgroup_settings = create_subgroup_settings(
   subgroup_label = "gender"
 )
 
-bmi_subgroup_settings = create_subgroup_settings(
+bmi_condition_subgroup_settings = create_subgroup_settings(
   variable_name = "bmi",
   subgroup_label = "bmi_condition",
   subgroup_definition = create_dynamic_categorize_settings(
@@ -99,7 +113,7 @@ bmi_subgroup_settings = create_subgroup_settings(
   )
 )
 
-ahirdi_br_subgroup_settings = create_subgroup_settings(
+ahirdi_br_condition_subgroup_settings = create_subgroup_settings(
   variable_name = "ahirdi_br",
   subgroup_label = "ahirdi_br_condition",
   subgroup_definition = create_dynamic_categorize_settings(
@@ -108,7 +122,7 @@ ahirdi_br_subgroup_settings = create_subgroup_settings(
     category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
   )
 )
-psg_ahirdi_subgroup_settings = create_subgroup_settings(
+psg_ahirdi_condition_subgroup_settings = create_subgroup_settings(
   variable_name = "psg_ahirdi",
   subgroup_label = "psg_ahirdi_condition",
   subgroup_definition = create_dynamic_categorize_settings(
@@ -118,7 +132,7 @@ psg_ahirdi_subgroup_settings = create_subgroup_settings(
   )
 )
 
-age_subgroup_settings = create_subgroup_settings(
+age_groups_subgroup_settings = create_subgroup_settings(
   variable_name = "age_groups",
   subgroup_label = "age_groups"
 )
@@ -173,6 +187,10 @@ humidifier_subgroup_settings <- create_subgroup_settings(
 dev_sel_type_subgroup_settings <- create_subgroup_settings(
   variable_name = "dev_sel_type",
   subgroup_label = "dev_sel_type"
+)
+study_subgroup_settings <- create_subgroup_settings(
+  variable_name = "study",
+  subgroup_label = "study"
 )
 
 
@@ -297,7 +315,7 @@ run_within_subgroups <- function(
     dplyr::group_by(dplyr::across(targeted_subgroups)) |>
     tidyr::nest() |>
     dplyr::mutate(
-      percentage = purrr::map_dbl(.x = data, .f = fun, ...)
+      percentage = purrr::map(.x = data, .f = fun, ...)
     ) |>
     dplyr::select(-data) |>
     dplyr::ungroup()
@@ -421,4 +439,17 @@ form_table <- function(data) {
 
 calculate_subgroup_percentage <- function(data, column) {
   sum(data[[column]], na.rm = T) / nrow(data) * 100
+}
+
+calculate_median_in_subgroup <- function(data, column) {
+  density(data[[column]], na.rm = TRUE)
+}
+
+calculate_density <- function(data, column) {
+  if (nrow(data) > 2) {
+    result <- density(data[[column]], na.rm = T, n = 100)
+    return(data.frame(x = result$x, y = result$y))
+  } else {
+    return(data.frame(x = mean(data[[column]], y = 1)))
+  }
 }
