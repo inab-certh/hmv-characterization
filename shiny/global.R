@@ -39,13 +39,10 @@ characteristics_sayy_first_visit_adult <- readr::read_csv("data/characteristics_
   dplyr::mutate(
     age_groups = dplyr::case_when(
       is.na(age) ~ "ΑΓΝΩΣΤΟ",
-      age <= 18 ~ "0-18",
-      age < 30 ~ "19-30",
-      age < 40 ~ "31-40",
-      age < 50 ~ "41-50",
-      age < 60 ~ "51-60",
-      age < 70 ~ "61-70",
-      TRUE ~ "71+"
+      age <= 17 ~ "0-17",
+      age < 45 ~ "18-44",
+      age < 65 ~ "45-64",
+      TRUE ~ "65+"
     )
   ) |>
   map_binary("xap") |>
@@ -71,13 +68,10 @@ characteristics_mv_first_visit <- readr::read_csv("data/characteristics_mv_first
   dplyr::mutate(
     age_groups = dplyr::case_when(
       is.na(age) ~ "ΑΓΝΩΣΤΟ",
-      age <= 18 ~ "0-18",
-      age < 30 ~ "19-30",
-      age < 40 ~ "31-40",
-      age < 50 ~ "41-50",
-      age < 60 ~ "51-60",
-      age < 70 ~ "61-70",
-      TRUE ~ "71+"
+      age <= 17 ~ "0-17",
+      age < 45 ~ "18-44",
+      age < 65 ~ "45-64",
+      TRUE ~ "65+"
     )
   ) |>
   map_binary("xap") |>
@@ -104,13 +98,10 @@ device_testing_info_overall_first_visist_adult <-
   dplyr::mutate(
     age_groups = dplyr::case_when(
       is.na(age) ~ "ΑΓΝΩΣΤΟ",
-      age <= 18 ~ "0-18",
-      age < 30 ~ "19-30",
-      age < 40 ~ "31-40",
-      age < 50 ~ "41-50",
-      age < 60 ~ "51-60",
-      age < 70 ~ "61-70",
-      TRUE ~ "71+"
+      age <= 17 ~ "0-17",
+      age < 45 ~ "18-44",
+      age < 65 ~ "45-64",
+      TRUE ~ "65+"
     )
   )
 breath_and_sleep_test_overall_first_visist_adult <-
@@ -118,13 +109,10 @@ breath_and_sleep_test_overall_first_visist_adult <-
   dplyr::mutate(
     age_groups = dplyr::case_when(
       is.na(age) ~ "ΑΓΝΩΣΤΟ",
-      age <= 18 ~ "0-18",
-      age < 30 ~ "19-30",
-      age < 40 ~ "31-40",
-      age < 50 ~ "41-50",
-      age < 60 ~ "51-60",
-      age < 70 ~ "61-70",
-      TRUE ~ "71+"
+      age <= 17 ~ "0-17",
+      age < 45 ~ "18-44",
+      age < 65 ~ "45-64",
+      TRUE ~ "65+"
     )
   ) |>
   map_binary("nocturnal_hypoventilation") |>
