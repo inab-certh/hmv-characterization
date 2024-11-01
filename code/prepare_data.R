@@ -31,7 +31,14 @@ patients_sayy <- patients_overall |>
   )
 
 patients_mv <- patients_overall |>
-  dplyr::filter(pat_condition == "ΜΗΧΑΝΙΚΟΣ ΑΕΡΙΣΜΟΣ")
+  dplyr::filter(pat_condition == "ΜΗΧΑΝΙΚΟΣ ΑΕΡΙΣΜΟΣ") |>
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΛΛΟ", "ΑΓΝΩΣΤΟ")
+    )
+  )
 
 breath_and_sleep_test_overall <- breath_and_sleep_test |>
   dplyr::select(-id) |>
@@ -76,6 +83,19 @@ characteristics_sayy_first_visit_adult <- patients_sayy |>
   dplyr::left_join(cardiopathy, by = c("cardiopathies_id" = "id")) |>
   dplyr::mutate(cardiopathy = tidyr::replace_na(cardiopathy, "ΑΓΝΩΣΤΟ"))
 
+characteristics_mv_first_visit <- patients_mv |>
+  dplyr::select(id, gender, age) |>
+  dplyr::left_join(
+    characteristics_overall_first_visit,
+    by = c("id" = "pat_id_id")
+  ) |>
+  dplyr::mutate(
+    smoker_status = tidyr::replace_na(smoker_status, "ΑΓΝΩΣΤΟ"),
+    alcohol_status = tidyr::replace_na(alcohol_status, "ΑΓΝΩΣΤΟ"),
+    underlying_disease = tidyr::replace_na(underlying_disease, "ΑΓΝΩΣΤΟ")
+  ) |>
+  dplyr::left_join(cardiopathy, by = c("cardiopathies_id" = "id")) |>
+  dplyr::mutate(cardiopathy = tidyr::replace_na(cardiopathy, "ΑΓΝΩΣΤΟ"))
 
 patient_ventilation_overall_first_visit <- patient_ventilation |>
   dplyr::left_join(visit, by = c("visit_id" = "id")) |>
@@ -91,16 +111,6 @@ patient_ventilation_mv_first_visit <- patients_mv |>
     characteristics_overall_first_visit |>
       dplyr::select(pat_id_id, bmi),
     by = c("id" = "pat_id_id"))
-
-characteristics_mv_first_visit <- patients_mv |>
-  dplyr::select(id, gender, age) |>
-  dplyr::left_join(characteristics_overall_first_visit, by = c("id" = "pat_id_id")) |>
-  dplyr::mutate(
-    smoker_status = tidyr::replace_na(smoker_status, "ΑΓΝΩΣΤΟ"),
-    alcohol_status = tidyr::replace_na(alcohol_status, "ΑΓΝΩΣΤΟ"),
-    underlying_disease = tidyr::replace_na(underlying_disease, "ΑΓΝΩΣΤΟ")
-  )
-
 
 device_testing_info_overall_first_visit<- device_testing_info |>
   dplyr::select(-id) |>
@@ -141,6 +151,12 @@ device_testing_info_overall_first_visist_adult <- patients_sayy |>
 
 
 breath_and_sleep_test_overall_first_visit <- breath_and_sleep_test |>
+  dplyr::left_join(
+    breath_and_sleep_test_clinical_symptoms |> dplyr::select(-id),
+    by = c("id" = "breathandsleeptest_id")
+  ) |>
+  dplyr::left_join(clinical_symptom, by = c("clinicalsymptom_id" = "id")) |>
+  dplyr::select(-clinicalsymptom_id) |>
   dplyr::select(-id) |>
   dplyr::left_join(visit, by = c("visit_id" = "id")) |>
   dplyr::group_by(pat_id_id) |>
@@ -190,22 +206,34 @@ readr::write_csv(
   patient_ventilation_overall_first_visit,
   "data/patient_ventilation_overall_first_visit.csv"
 )
+message("Wrote file: data/patient_ventilation_overall_first_visit.csv")
+
 readr::write_csv(
   characteristics_mv_first_visit,
   "data/characteristics_mv_first_visit.csv"
 )
+message("Wrote file: data/characteristics_mv_first_visit.csv")
+
+readr::write_csv(
+  patient_ventilation_mv_first_visit,
+  "data/patient_ventilation_mv_first_visit.csv"
+)
+message("Wrote file: data/patient_ventilation_mv_first_visit")
 
 readr::write_csv(
   characteristics_sayy_first_visit_adult,
   "data/characteristics_sayy_first_visit_adult.csv"
 )
+message("Wrote file: data/characteristics_sayy_first_visit_adult")
 
 readr::write_csv(
   device_testing_info_overall_first_visist_adult,
   "data/device_testing_info_overall_first_visist_adult.csv"
 )
+message("Wrote file: data/device_testing_info_overall_first_visist_adult.csv")
 
 readr::write_csv(
   breath_and_sleep_test_overall_first_visit_adult,
   "data/breath_and_sleep_test_overall_first_visit_adult.csv"
 )
+message("Wrote file: data/breath_and_sleep_test_overall_first_visit_adult.csv")

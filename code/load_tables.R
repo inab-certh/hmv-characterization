@@ -20,6 +20,8 @@ check_cause <- DBI::dbGetQuery(conn, "SELECT * FROM patients_checkcause")
 checked_by <- DBI::dbGetQuery(conn, "SELECT * FROM patients_checkedby")
 ventilation_type <- DBI::dbGetQuery(conn, "SELECT * FROM patients_ventilationtype")
 breath_and_sleep_test <- DBI::dbGetQuery(conn, "SELECT * FROM patients_breathandsleeptest")
+breath_and_sleep_test_clinical_symptoms <- DBI::dbGetQuery(conn, "SELECT * FROM patients_breathandsleeptest_clinical_symptoms")
+clinical_symptom <- DBI::dbGetQuery(conn, "SELECT * FROM patients_clinicalsymptom")
 
 characteristics <- DBI::dbGetQuery(
   conn = conn,
