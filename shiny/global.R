@@ -67,6 +67,38 @@ characteristics_sayy_first_visit_adult <- readr::read_csv("data/characteristics_
   map_binary("ay") |>
   map_binary("pulmonary_hypertension")
 
+characteristics_mv_first_visit <- readr::read_csv("data/characteristics_mv_first_visit.csv") |>
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "ΑΓΝΩΣΤΟ",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |>
+  map_binary("xap") |>
+  map_binary("other_obstructive") |>
+  map_binary("obesity_subvent") |>
+  map_binary("sayy") |>
+  map_binary("dmd") |>
+  map_binary("myasthenia") |>
+  map_binary("nkn") |>
+  map_binary("parkinson") |>
+  map_binary("heart_failure") |>
+  map_binary("other_neurological") |>
+  map_binary("diaphragm_malfunction") |>
+  map_binary("posttb") |>
+  map_binary("kyphoscoliosis") |>
+  map_binary("other_limit_lung") |>
+  map_binary("sd") |>
+  map_binary("aee") |>
+  map_binary("ay") |>
+  map_binary("pulmonary_hypertension")
+
 device_testing_info_overall_first_visist_adult <-
   readr::read_csv("data/device_testing_info_overall_first_visist_adult.csv") |>
   dplyr::mutate(
@@ -94,7 +126,9 @@ breath_and_sleep_test_overall_first_visist_adult <-
       age < 70 ~ "61-70",
       TRUE ~ "71+"
     )
-  )
+  ) |>
+  map_binary("nocturnal_hypoventilation") |>
+  map_binary("hypoxemia")
 
 
 
@@ -110,6 +144,26 @@ bmi_condition_subgroup_settings = create_subgroup_settings(
     column = "bmi",
     cutoffs = c(25, 30),
     category_names = c("bmi <= 25", "25 < bmi <= 30", "bmi > 30")
+  )
+)
+
+bmi_25_subgroup_settings <-  create_subgroup_settings(
+  variable_name = "bmi",
+  subgroup_label = "bmi_25",
+  subgroup_definition = create_dynamic_categorize_settings(
+    column = "bmi",
+    cutoffs = 25,
+    category_names = c("bmi < 25", "bmi >= 25")
+  )
+)
+
+bmi_30_subgroup_settings <-  create_subgroup_settings(
+  variable_name = "bmi",
+  subgroup_label = "bmi_30",
+  subgroup_definition = create_dynamic_categorize_settings(
+    column = "bmi",
+    cutoffs = 30,
+    category_names = c("bmi < 30", "bmi >= 30")
   )
 )
 
@@ -191,6 +245,18 @@ dev_sel_type_subgroup_settings <- create_subgroup_settings(
 study_subgroup_settings <- create_subgroup_settings(
   variable_name = "study",
   subgroup_label = "study"
+)
+nocturnal_hypoventilation_subgroup_settings <- create_subgroup_settings(
+  variable_name = "nocturnal_hypoventilation",
+  subgroup_label = "nocturnal_hypoventilation"
+)
+hypoxemia_subgroup_settings <- create_subgroup_settings(
+  variable_name = "hypoxemia",
+  subgroup_label = "hypoxemia"
+)
+symptom_subgroup_settings <- create_subgroup_settings(
+  variable_name = "symptom",
+  subgroup_label = "symptom"
 )
 
 
@@ -437,6 +503,28 @@ form_table <- function(data) {
 # }
 
 
+oxymetry_variables <- c(
+  "avsao2_oxy", "minsao2_oxy", "t90_oxy", "odi_oxy", "record_duration"
+)
+
+level_three_variables <- c(
+  "ahirdi_br", "avsao2_br", "minsao2_br", "t90_br", "odi_br", "ahirdi_br",
+  "record_duration"
+)
+
+psg_variables <- c(
+  "psg_trt", "psg_tst", "psg_sl", "psg_se", "psg_ai", "waso", "psg_n1", "psg_n2",
+  "psg_n3", "psg_rem", "psg_snore", "psg_avsao2", "psg_minsao2", "psg_t90",
+  "psg_odi", "psg_ahirdi"
+)
+
+continuous_variables <- c(
+  "fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc", "ph", "po2", "pco2", "h3co2",
+  oxymetry_variables,
+  level_three_variables,
+  psg_variables
+)
+
 calculate_subgroup_percentage <- function(data, column) {
   sum(data[[column]], na.rm = T) / nrow(data) * 100
 }
@@ -447,8 +535,25 @@ calculate_median_in_subgroup <- function(data, column) {
 
 calculate_density <- function(data, column) {
   if (nrow(data) > 2) {
-    result <- density(data[[column]], na.rm = T, n = 100)
-    return(data.frame(x = result$x, y = result$y))
+    if (column %in% c("fvc_perc", "fev_perc"))
+      breaks_hist <- seq(0, 150, length.out = 26)
+    else if (column == "fev1_fvc")
+      breaks_hist <- seq(0, 150, length.out = 26)
+    else if (column == "fv1_l")
+      breaks_hist <- seq(0, 5, length.out = 26)
+    else if (column == "ph")
+      breaks_hist <- seq(0, 7, length.out = 20)
+    else if (column == "h3co2")
+      breaks_hist <- seq(0, 40, length.out = 21)
+    else
+      breaks_hist <- 26
+
+    data <- data |>
+      dplyr::filter(get(column) != 0)
+    # result <- density(data[[column]], na.rm = T, breaks = 100)
+    breaks_hist <- seq(0, max(data[[column]], na.rm = TRUE), length.out = 10)
+    result <- hist(data[[column]], na.rm = T, breaks = 20, plot = FALSE)
+    return(data.frame(x = result$mids, y = result$density))
   } else {
     return(data.frame(x = mean(data[[column]], y = 1)))
   }

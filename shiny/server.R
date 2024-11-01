@@ -13,27 +13,31 @@ shiny::shinyServer(function(input, output,session) {
   })
 
   current_base_dataset <- shiny::reactive({
-    if (input$analysis_table == "characteristics")
-      characteristics_sayy_first_visit_adult
-    else if (input$analysis_table == "device")
-      device_testing_info_overall_first_visist_adult
-    else if (input$analysis_table == "breath_and_sleep_test") {
-      breath_and_sleep_test_overall_first_visist_adult |>
-      dplyr::filter(study != "ΑΓΝΩΣΤΟ")
+    if (input$menu1 == "sayy") {
+      if (input$analysis_table == "characteristics")
+        characteristics_sayy_first_visit_adult
+      else if (input$analysis_table == "device")
+        device_testing_info_overall_first_visist_adult
+      else if (input$analysis_table == "breath_and_sleep_test") {
+        breath_and_sleep_test_overall_first_visist_adult |>
+          dplyr::filter(study != "ΑΓΝΩΣΤΟ")
+      }
+    } else if (input$menu1 == "mechanical_ventilation") {
+      if (input$analysis_table == "characteristics")
+        characteristics_mv_first_visit
     }
   })
 
   result_table <- shiny::eventReactive(
-    list(subgroup_settings(),input$target_variable), {
+    list(subgroup_settings(),input$target_variable, input$menu1), {
       if (input$analysis_table == "breath_and_sleep_test" &
-          input$target_variable %in% c("fvc_perc", "fev1_l", "fev_perc", "fev1_fvc")) {
-        result <- run_within_subgroups(
+          input$target_variable %in% continuous_variables) {
+        result <- count_subgroups_with_percentage(
           data = current_base_dataset(),
           subgroup_settings = subgroup_settings(),
-          target_variable = input$target_variable,
-          fun = calculate_median_in_subgroup,
-          column = input$target_variable
-        )
+          target_variable = input$subgroup_variables[1]
+        ) |>
+          dplyr::ungroup()
       } else {
         result <- count_subgroups_with_percentage(
           data = current_base_dataset(),
@@ -74,7 +78,7 @@ shiny::shinyServer(function(input, output,session) {
     if (input$analysis_table == "breath_and_sleep_test") {
       selected_options <- c(
         selected_options,
-        "fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc"
+        continuous_variables
       )
     }
     updateSelectInput(
@@ -88,7 +92,7 @@ shiny::shinyServer(function(input, output,session) {
     new_choices_subgroup_variables <- switch(
       input$analysis_table,
       characteristics = c(
-        "gender", "bmi_condition", "age_groups", "ahirdi_br_condition",
+        "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups", "ahirdi_br_condition",
         "psg_ahirdi_condition", "smoker_status", "alcohol_status",
         "underlying_disease", "sd", "aee", "ay", "cardiopathy"
       ),
@@ -97,13 +101,14 @@ shiny::shinyServer(function(input, output,session) {
         "ma_type", "humidifier","dev_sel_type"
       ),
       breath_and_sleep_test = c(
-        "study", "age_groups", "gender", "bmi_condition"
+        "study", "age_groups", "gender", "bmi_condition","bmi_25", "bmi_30",
+        "nocturnal_hypoventilation", "hypoxemia", "symptom"
       )
     )
     new_choices_target_variable <- switch(
       input$analysis_table,
       characteristics = c(
-        "gender", "bmi_condition", "age_groups","ahirdi_br_condition",
+        "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups","ahirdi_br_condition",
         "psg_ahirdi_condition", "smoker_status", "alcohol_status",
         "underlying_disease", "sd", "aee", "ay","cardiopathy"
       ),
@@ -112,8 +117,10 @@ shiny::shinyServer(function(input, output,session) {
         "ma_type", "humidifier", "dev_sel_type"
       ),
       breath_and_sleep_test = c(
-        "study", "age_groups", "gender", "bmi_condition",
-        "fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc"
+        "study", "age_groups", "gender", "bmi_condition","bmi_25", "bmi_30",
+        "nocturnal_hypoventilation", "hypoxemia",
+        continuous_variables,
+        "symptom"
       )
     )
     shiny::updateSelectizeInput(
@@ -131,11 +138,20 @@ shiny::shinyServer(function(input, output,session) {
   })
 
   output$dynamic_output <- shiny::renderUI({
-    variables <- c("fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc")
     if (input$analysis_table == "breath_and_sleep_test" &
-        input$target_variable %in% variables) {
+        input$target_variable %in% continuous_variables) {
       dd <- current_base_dataset() |>
         dplyr::filter(study != "ΑΓΝΩΣΤΟ")
+      if (input$target_variable %in% oxymetry_variables) {
+        dd <- dd |>
+          dplyr::filter(study == "overnight oxymetry")
+      } else if (input$target_variable %in% level_three_variables) {
+        dd <- dd |>
+          dplyr::filter(study == "level three rec")
+      } else if (input$target_variable %in% psg_variables) {
+        dd <- dd |>
+          dplyr::filter(study == "polysomnography")
+      }
       pp <- run_within_subgroups(
         data = dd,
         subgroup_settings = subgroup_settings(),
@@ -160,14 +176,16 @@ shiny::shinyServer(function(input, output,session) {
             fill = groups
             )
           ) +
-        ggplot2::geom_area(alpha = 0.5)
+        # ggplot2::geom_area(alpha = 0.5)
+        ggplot2::geom_bar(stat = "identity", position = "dodge") +
+        ggplot2::theme_bw()
         # ggplot2::geom_line()
       shiny::renderPlot(result_plot)
     }
   })
 
   shiny::observe(
-    print(result_table()))
+    print(input$menu1))
 
 })
 

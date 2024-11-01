@@ -51,16 +51,21 @@ shiny::shinyUI(
       )
     ),
     shinydashboard::dashboardBody(
-      shinydashboard::tabItems(
-        shinydashboard::tabItem(
-          tabName = "sayy",
+      shiny::fluidRow(
+        shinydashboard::box(
+          title = "Ανάλυση σε υπο-ομάδες",
+          status = "info",
+          width = 12,
           DT::dataTableOutput("subgroup_analysis"),
-          shiny::uiOutput("dynamic_output"),
           shiny::downloadButton("download_data")
-        ),
-        shinydashboard::tabItem(
-          tabName = "mechanical_ventilation",
-          shiny::h2("Under construction")
+        )
+      ),
+      shiny::fluidRow(
+        shinydashboard::box(
+          title = "Κατανομή τιμών",
+          status = "info",
+          width = 12,
+          shiny::uiOutput("dynamic_output")
         )
       )
     )
