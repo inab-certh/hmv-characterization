@@ -35,7 +35,49 @@ map_binary <- function(data, column) {
       )
     )
 }
-characteristics_sayy_first_visit_adult <- readr::read_csv("data/characteristics_sayy_first_visit_adult.csv") |>
+
+map_binary_col <- function(column) {
+
+  .replace_binary <- function(x) {
+    if (is.na(x)) return("ΑΓΝΩΣΤΟ")
+    else if (x == 0) return("ΟΧΙ")
+    else if (x == 1) return("ΝΑΙ")
+  }
+
+  sapply(column, .replace_binary)
+}
+
+# combine_cols <- function(colum1, column2) {
+#   .select_column <- function(x) {
+#     if (is.na(all(x))) {
+#       return(NA)
+#     } else if (is.na(any(x))) {
+#       return(x[which(!is.na(x))])
+#     } else {
+#       return(max(x))
+#     }
+#   }
+#
+#   mapply(function(x, y) .select_column(c(x, y)), column1, column2)
+# }
+
+combine_cols <- function(data, col1, col2) {
+  data %>%
+    dplyr::mutate(
+      combined = purrr::map2({{col1}}, {{col2}}, ~{
+        if (all(is.na(c(.x, .y)))) {
+          NA
+        } else if (any(is.na(c(.x, .y)))) {
+          dplyr::coalesce(.x, .y)
+        } else {
+          max(.x, .y, na.rm = TRUE)
+        }
+      })
+    )
+}
+
+characteristics_sayy_first_visit_adult <-
+  readr::read_csv("data/characteristics_sayy_first_visit_adult.csv") |>
   dplyr::mutate(
     age_groups = dplyr::case_when(
       is.na(age) ~ "ΑΓΝΩΣΤΟ",
@@ -45,24 +87,19 @@ characteristics_sayy_first_visit_adult <- readr::read_csv("data/characteristics_
       TRUE ~ "65+"
     )
   ) |>
-  map_binary("xap") |>
-  map_binary("other_obstructive") |>
-  map_binary("obesity_subvent") |>
-  map_binary("sayy") |>
-  map_binary("dmd") |>
-  map_binary("myasthenia") |>
-  map_binary("nkn") |>
-  map_binary("parkinson") |>
-  map_binary("heart_failure") |>
-  map_binary("other_neurological") |>
-  map_binary("diaphragm_malfunction") |>
-  map_binary("posttb") |>
-  map_binary("kyphoscoliosis") |>
-  map_binary("other_limit_lung") |>
-  map_binary("sd") |>
-  map_binary("aee") |>
-  map_binary("ay") |>
-  map_binary("pulmonary_hypertension")
+  dplyr::mutate(
+    dplyr::across(
+      c(
+        "xap", "other_obstructive", "obesity_subvent", "sayy", "dmd",
+        "myasthenia", "nkn", "parkinson", "heart_failure", "other_neurological",
+        "diaphragm_malfunction", "posttb", "kyphoscoliosis", "other_limit_lung",
+        "sd", "aee", "ay", "pulmonary_hypertension"
+      ),
+      ~ map_binary_col(.x)
+    )
+  ) |>
+  combine_cols(ahirdi_br, psg_ahirdi) |>
+  dplyr::rename("ahirdi_overall" = "combined")
 
 characteristics_mv_first_visit <- readr::read_csv("data/characteristics_mv_first_visit.csv") |>
   dplyr::mutate(
@@ -74,24 +111,17 @@ characteristics_mv_first_visit <- readr::read_csv("data/characteristics_mv_first
       TRUE ~ "65+"
     )
   ) |>
-  map_binary("xap") |>
-  map_binary("other_obstructive") |>
-  map_binary("obesity_subvent") |>
-  map_binary("sayy") |>
-  map_binary("dmd") |>
-  map_binary("myasthenia") |>
-  map_binary("nkn") |>
-  map_binary("parkinson") |>
-  map_binary("heart_failure") |>
-  map_binary("other_neurological") |>
-  map_binary("diaphragm_malfunction") |>
-  map_binary("posttb") |>
-  map_binary("kyphoscoliosis") |>
-  map_binary("other_limit_lung") |>
-  map_binary("sd") |>
-  map_binary("aee") |>
-  map_binary("ay") |>
-  map_binary("pulmonary_hypertension")
+  dplyr::mutate(
+    dplyr::across(
+      c(
+        "xap", "other_obstructive", "obesity_subvent", "sayy", "dmd",
+        "myasthenia", "nkn", "parkinson", "heart_failure", "other_neurological",
+        "diaphragm_malfunction", "posttb", "kyphoscoliosis", "other_limit_lung",
+        "sd", "aee", "ay", "pulmonary_hypertension"
+      ),
+      ~ map_binary_col(.x)
+    )
+  )
 
 device_testing_info_overall_first_visist_adult <-
   readr::read_csv("data/device_testing_info_overall_first_visist_adult.csv") |>
@@ -164,6 +194,7 @@ ahirdi_br_condition_subgroup_settings = create_subgroup_settings(
     category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
   )
 )
+
 psg_ahirdi_condition_subgroup_settings = create_subgroup_settings(
   variable_name = "psg_ahirdi",
   subgroup_label = "psg_ahirdi_condition",
@@ -174,6 +205,15 @@ psg_ahirdi_condition_subgroup_settings = create_subgroup_settings(
   )
 )
 
+ahirdi_overall_condition_subgroup_settings = create_subgroup_settings(
+  variable_name = "ahirdi_overall",
+  subgroup_label = "ahirdi_overall_condition",
+  subgroup_definition = create_dynamic_categorize_settings(
+    column = "ahirdi_overall",
+    cutoffs = c(15, 30),
+    category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
+  )
+)
 age_groups_subgroup_settings = create_subgroup_settings(
   variable_name = "age_groups",
   subgroup_label = "age_groups"
@@ -253,7 +293,9 @@ dynamic_categorize <- function(data, column, cutoffs, category_names) {
     stop("Number of cut-offs must be one less than the number of labels")
   }
   case_conditions <- list()
-  case_conditions[[1]] <- glue::glue('{ column } <= cutoffs[1] ~ category_names[1]')
+  case_conditions[[1]] <- glue::glue(
+    '{ column } <= cutoffs[1] ~ category_names[1]'
+  )
 
   for (i in seq_along(cutoffs)[-1]) {
     case_conditions[[i]] <- glue::glue(

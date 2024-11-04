@@ -93,7 +93,7 @@ shiny::shinyServer(function(input, output,session) {
       input$analysis_table,
       characteristics = c(
         "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups", "ahirdi_br_condition",
-        "psg_ahirdi_condition", "smoker_status", "alcohol_status",
+        "psg_ahirdi_condition", "ahirdi_overall_condition", "smoker_status", "alcohol_status",
         "underlying_disease", "sd", "aee", "ay", "cardiopathy"
       ),
       device = c(
@@ -109,7 +109,7 @@ shiny::shinyServer(function(input, output,session) {
       input$analysis_table,
       characteristics = c(
         "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups","ahirdi_br_condition",
-        "psg_ahirdi_condition", "smoker_status", "alcohol_status",
+        "psg_ahirdi_condition", "ahirdi_overall_condition", "smoker_status", "alcohol_status",
         "underlying_disease", "sd", "aee", "ay","cardiopathy"
       ),
       device = c(
