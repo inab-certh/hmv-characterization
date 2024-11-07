@@ -110,16 +110,61 @@ patient_ventilation_mv_first_visit <- patients_mv |>
   dplyr::left_join(
     characteristics_overall_first_visit |>
       dplyr::select(pat_id_id, bmi),
-    by = c("id" = "pat_id_id"))
+    by = c("id" = "pat_id_id")) |>
+  dplyr::left_join(
+    period_of_usage,
+    by = c("period_of_usage_id" = "id")
+  ) |>
+  dplyr::rename("period_of_usage" = "period") |>
+  dplyr::select(-period_of_usage_id) |>
+  dplyr::left_join(
+    treatment_provider,
+    by = c("treatment_provider_id" = "id")
+  ) |>
+  dplyr::rename("treatment_provider" = "provider") |>
+  dplyr::select(-treatment_provider_id) |>
+  dplyr::left_join(
+    xoth,
+    by = c("xoth_id" = "id")
+  ) |>
+  dplyr::select(-xoth_id) |>
+  dplyr::left_join(
+    ventilation_reason,
+    by = c("ventilation_reason_id" = "id")
+  ) |>
+  dplyr::rename("ventilation_reason" = "reason") |>
+  dplyr::select(-ventilation_reason_id) |>
+  dplyr::left_join(
+    ventilation_status,
+    by = c("ventilation_status_id" = "id")
+  ) |>
+  dplyr::rename("ventilation_status" = "status") |>
+  dplyr::select(-ventilation_status_id) |>
+  dplyr::left_join(
+    ventilation_type,
+    by = c("ventilation_type_id" = "id")
+  ) |>
+  dplyr::select(-ventilation_type_id) |>
+  dplyr::left_join(
+  invasive_system_estimation,
+    by = c("invasive_ventilation_id" = "id")
+  ) |>
+  dplyr::rename("invasive_ventilation" = "estimation") |>
+  dplyr::select(-invasive_ventilation_id) |>
+  dplyr::left_join(
+  tracheostomy_type,
+    by = c("tracheostomy_id" = "id")
+  ) |>
+  dplyr::select(-tracheostomy_id)
 
-device_testing_info_overall_first_visit<- device_testing_info |>
+device_testing_info_overall_first_visit <- device_testing_info |>
   dplyr::select(-id) |>
   dplyr::left_join(visit, by = c("visit_id" = "id")) |>
   dplyr::group_by(pat_id_id) |>
   dplyr::arrange(visit_date) |>
   dplyr::slice_head(n = 1)
 
-device_testing_info_overall_first_visist_adult <- patients_sayy |>
+device_testing_info_overall_sayy_first_visit_adult <- patients_sayy |>
   dplyr::select(id, gender, age) |>
   dplyr::filter(age >= 18) |>
   dplyr::left_join(
@@ -149,6 +194,34 @@ device_testing_info_overall_first_visist_adult <- patients_sayy |>
     )
   )
 
+device_testing_info_overall_mv_first_visit <- patients_mv |>
+  dplyr::select(id, gender, age) |>
+  dplyr::left_join(
+    device_testing_info_overall_first_visit,
+    by = c("id" = "pat_id_id")
+  ) |>
+  dplyr::left_join(mask_type, by = c("mask_type_id" = "id")) |>
+  dplyr::rename("mask_type" = "type") |>
+  dplyr::left_join(mv_type, by = c("ma_type_id" = "id")) |>
+  dplyr::rename("ma_type" = "type") |>
+  dplyr::left_join(device_selection, by = c("dev_sel_id" = "id")) |>
+  dplyr::rename("dev_sel_type" = "type") |>
+  dplyr::left_join(check_cause, by = c("check_cause_id" = "id")) |>
+  dplyr::rename("check_cause" = "cause") |>
+  dplyr::left_join(checked_by, by = c("checked_by_id" = "id")) |>
+  dplyr::rename("checked_by" = "by") |>
+  dplyr::mutate(
+    mask_type = tidyr::replace_na(mask_type, "ΑΓΝΩΣΤΟ"),
+    ma_type = tidyr::replace_na(ma_type, "ΑΓΝΩΣΤΟ"),
+    dev_sel_type = tidyr::replace_na(dev_sel_type, "ΑΓΝΩΣΤΟ"),
+    checked_by = tidyr::replace_na(checked_by, "ΑΓΝΩΣΤΟ"),
+    check_cause = tidyr::replace_na(check_cause, "ΑΓΝΩΣΤΟ")
+  ) |>
+  dplyr::select(
+    -c(
+      "mask_type_id", "ma_type_id", "dev_sel_id", "check_cause_id", "checked_by_id"
+    )
+  )
 
 breath_and_sleep_test_overall_first_visit <- breath_and_sleep_test |>
   dplyr::left_join(
@@ -227,10 +300,16 @@ readr::write_csv(
 message("Wrote file: data/characteristics_sayy_first_visit_adult")
 
 readr::write_csv(
-  device_testing_info_overall_first_visist_adult,
-  "data/device_testing_info_overall_first_visist_adult.csv"
+  device_testing_info_overall_sayy_first_visit_adult,
+  "data/device_testing_info_overall_sayy_first_visit_adult.csv"
 )
-message("Wrote file: data/device_testing_info_overall_first_visist_adult.csv")
+message("Wrote file: data/device_testing_info_overall_sayy_first_visit_adult.csv")
+
+readr::write_csv(
+  device_testing_info_overall_mv_first_visit,
+  "data/device_testing_info_overall_mv_first_visit.csv"
+)
+message("Wrote file: data/device_testing_info_overall_mv_first_visit.csv")
 
 readr::write_csv(
   breath_and_sleep_test_overall_first_visit_adult,

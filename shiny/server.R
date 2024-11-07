@@ -12,26 +12,31 @@ shiny::shinyServer(function(input, output,session) {
     return(result)
   })
 
-  current_base_dataset <- shiny::reactive({
+  current_base_dataset <- shiny::eventReactive(
+    list(subgroup_settings(),input$target_variable, input$menu1), {
     if (input$menu1 == "sayy") {
       if (input$analysis_table == "characteristics")
         characteristics_sayy_first_visit_adult
       else if (input$analysis_table == "device")
         device_testing_info_overall_first_visist_adult
       else if (input$analysis_table == "breath_and_sleep_test") {
-        breath_and_sleep_test_overall_first_visist_adult |>
+        breath_and_sleep_test_overall_first_visit_adult |>
           dplyr::filter(study != "ΑΓΝΩΣΤΟ")
       }
     } else if (input$menu1 == "mechanical_ventilation") {
       if (input$analysis_table == "characteristics")
         characteristics_mv_first_visit
+      else if (input$analysis_table == "patient_ventilation")
+        patient_ventilation_mv_first_visit
+      else if (input$analysis_table == "device")
+        device_testing_info_overall_mv_first_visit
     }
   })
 
   result_table <- shiny::eventReactive(
     list(subgroup_settings(),input$target_variable, input$menu1), {
       if (input$analysis_table == "breath_and_sleep_test" &
-          input$target_variable %in% continuous_variables) {
+          input$target_variable %in% sayy_continuous_variables) {
         result <- count_subgroups_with_percentage(
           data = current_base_dataset(),
           subgroup_settings = subgroup_settings(),
@@ -78,7 +83,7 @@ shiny::shinyServer(function(input, output,session) {
     if (input$analysis_table == "breath_and_sleep_test") {
       selected_options <- c(
         selected_options,
-        continuous_variables
+        sayy_continuous_variables
       )
     }
     updateSelectInput(
@@ -88,41 +93,104 @@ shiny::shinyServer(function(input, output,session) {
     )
   })
 
+  observeEvent(input$menu1, {
+    new_choices_analysis_table <- switch(
+      input$menu1,
+      sayy =  c("characteristics", "device", "breath_and_sleep_test"),
+      mechanical_ventilation = c(
+        "characteristics", "patient_ventilation", "device"
+      )
+    )
+    shiny::updateSelectInput(
+      session,
+      "analysis_table",
+      choices = new_choices_analysis_table,
+      selected = new_choices_analysis_table[1]
+    )
+  })
+
   observeEvent(input$analysis_table, {
-    new_choices_subgroup_variables <- switch(
-      input$analysis_table,
-      characteristics = c(
-        "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups", "ahirdi_br_condition",
-        "psg_ahirdi_condition", "ahirdi_overall_condition", "smoker_status", "alcohol_status",
-        "underlying_disease", "sd", "aee", "ay", "cardiopathy"
-      ),
-      device = c(
-        "age_groups", "gender", "mask_type",
-        "ma_type", "humidifier","dev_sel_type"
-      ),
-      breath_and_sleep_test = c(
-        "study", "age_groups", "gender", "bmi_condition","bmi_25", "bmi_30",
-        "nocturnal_hypoventilation", "hypoxemia", "symptom"
+    if (input$menu1 == "sayy") {
+      new_choices_subgroup_variables <- switch(
+        input$analysis_table,
+        characteristics = c(
+          "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups",
+          "ahirdi_br_condition", "psg_ahirdi_condition",
+          "ahirdi_overall_condition", "smoker_status", "alcohol_status",
+          "underlying_disease", "sd", "aee", "ay", "cardiopathy",
+          "pulmonary_hypertension"
+        ),
+        device = c(
+          "age_groups", "gender", "mask_type",
+          "ma_type", "humidifier","dev_sel_type"
+        ),
+        breath_and_sleep_test = c(
+          "study", "age_groups", "gender", "bmi_condition","bmi_25", "bmi_30",
+          "nocturnal_hypoventilation", "hypoxemia", "symptom"
+        )
       )
-    )
-    new_choices_target_variable <- switch(
-      input$analysis_table,
-      characteristics = c(
-        "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups","ahirdi_br_condition",
-        "psg_ahirdi_condition", "ahirdi_overall_condition", "smoker_status", "alcohol_status",
-        "underlying_disease", "sd", "aee", "ay","cardiopathy"
-      ),
-      device = c(
-        "age_groups", "gender", "mask_type",
-        "ma_type", "humidifier", "dev_sel_type"
-      ),
-      breath_and_sleep_test = c(
-        "study", "age_groups", "gender", "bmi_condition","bmi_25", "bmi_30",
-        "nocturnal_hypoventilation", "hypoxemia",
-        continuous_variables,
-        "symptom"
+      new_choices_target_variable <- switch(
+        input$analysis_table,
+        characteristics = c(
+          "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups",
+          "ahirdi_br_condition", "psg_ahirdi_condition",
+          "ahirdi_overall_condition", "smoker_status", "alcohol_status",
+          "underlying_disease", "sd", "aee", "ay","cardiopathy",
+          "pulmonary_hypertension"
+        ),
+        device = c(
+          "age_groups", "gender", "mask_type",
+          "ma_type", "humidifier", "dev_sel_type"
+        ),
+        breath_and_sleep_test = c(
+          "study", "age_groups", "gender", "bmi_condition","bmi_25", "bmi_30",
+          "nocturnal_hypoventilation", "hypoxemia",
+          sayy_continuous_variables,
+          "symptom"
+        )
       )
-    )
+    } else if (input$menu1 == "mechanical_ventilation") {
+      new_choices_subgroup_variables <- switch(
+        input$analysis_table,
+        characteristics = c(
+          "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups",
+          "xap", "sayy", "obesity_subvent", "other_obstructive", "dmd",
+          "myastenia", "nkn", "other_neurological", "diaphragm_malfunction",
+          "posttb", "kyphoscoliosis", "other_limit_lung"
+        ),
+        patient_ventilation = c(
+          "gender", "period_of_usage", "xoth_hours_24_condition",
+          "application_instructions", "physiotherapy_instructions",
+          "emergency_instructions", "family_education", "certified_education",
+          "invasive_ventilation", "tracheostomy_type", "ventilation_reason",
+          "ventilation_status", "ventilation_type"
+        ),
+        device = c(
+          "age_groups", "gender", "mask_type",
+          "ma_type", "humidifier","dev_sel_type"
+        )
+      )
+      new_choices_target_variable <- switch(
+        input$analysis_table,
+        characteristics = c(
+          "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups",
+          "xap", "sayy", "obesity_subvent", "other_obstructive", "dmd",
+          "myastenia", "nkn", "other_neurological", "diaphragm_malfunction",
+          "posttb", "kyphoscoliosis", "other_limit_lung"
+        ),
+        patient_ventilation = c(
+          "gender", "period_of_usage", "xoth_hours_24_condition",
+          "application_instructions", "physiotherapy_instructions",
+          "emergency_instructions", "family_education", "certified_education",
+          "invasive_ventilation", "tracheostomy_type", "ventilation_reason",
+          "ventilation_status", "ventilation_type"
+        ),
+        device = c(
+          "age_groups", "gender", "mask_type",
+          "ma_type", "humidifier","dev_sel_type"
+        )
+      )
+    }
     shiny::updateSelectizeInput(
       session,
       "subgroup_variables",
@@ -139,7 +207,7 @@ shiny::shinyServer(function(input, output,session) {
 
   output$dynamic_output <- shiny::renderUI({
     if (input$analysis_table == "breath_and_sleep_test" &
-        input$target_variable %in% continuous_variables) {
+        input$target_variable %in% sayy_continuous_variables) {
       dd <- current_base_dataset() |>
         dplyr::filter(study != "ΑΓΝΩΣΤΟ")
       if (input$target_variable %in% oxymetry_variables) {
@@ -185,7 +253,7 @@ shiny::shinyServer(function(input, output,session) {
   })
 
   shiny::observe(
-    print(input$menu1))
+    print(input$analysis_table))
 
 })
 

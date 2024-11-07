@@ -62,7 +62,7 @@ map_binary_col <- function(column) {
 # }
 
 combine_cols <- function(data, col1, col2) {
-  data %>%
+  data |>
     dplyr::mutate(
       combined = purrr::map2({{col1}}, {{col2}}, ~{
         if (all(is.na(c(.x, .y)))) {
@@ -123,8 +123,8 @@ characteristics_mv_first_visit <- readr::read_csv("data/characteristics_mv_first
     )
   )
 
-device_testing_info_overall_first_visist_adult <-
-  readr::read_csv("data/device_testing_info_overall_first_visist_adult.csv") |>
+device_testing_info_overall_sayy_first_visit_adult <-
+  readr::read_csv("data/device_testing_info_overall_sayy_first_visit_adult.csv") |>
   dplyr::mutate(
     age_groups = dplyr::case_when(
       is.na(age) ~ "ΑΓΝΩΣΤΟ",
@@ -134,7 +134,18 @@ device_testing_info_overall_first_visist_adult <-
       TRUE ~ "65+"
     )
   )
-breath_and_sleep_test_overall_first_visist_adult <-
+device_testing_info_overall_mv_first_visit <-
+  readr::read_csv("data/device_testing_info_overall_mv_first_visit.csv") |>
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "ΑΓΝΩΣΤΟ",
+      age <= 17 ~ "0-17",
+      age < 45 ~ "18-44",
+      age < 65 ~ "45-64",
+      TRUE ~ "65+"
+    )
+  )
+breath_and_sleep_test_overall_first_visit_adult <-
   readr::read_csv("data/breath_and_sleep_test_overall_first_visit_adult.csv") |>
   dplyr::mutate(
     age_groups = dplyr::case_when(
@@ -148,7 +159,27 @@ breath_and_sleep_test_overall_first_visist_adult <-
   map_binary("nocturnal_hypoventilation") |>
   map_binary("hypoxemia")
 
-
+patient_ventilation_mv_first_visit <-
+  readr::read_csv("data/patient_ventilation_mv_first_visit.csv") |>
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "ΑΓΝΩΣΤΟ",
+      age <= 17 ~ "0-17",
+      age < 45 ~ "18-44",
+      age < 65 ~ "45-64",
+      TRUE ~ "65+"
+    )
+  ) |>
+  dplyr::mutate(
+    dplyr::across(
+      c(
+        "application_instructions", "physiotherapy_instructions",
+        "emergency_instructions", "family_education", "certified_education"
+      ),
+      ~ map_binary_col(.x)
+    )
+  ) |>
+  dplyr::filter(ventilation_hours <= 24)
 
 gender_subgroup_settings = create_subgroup_settings(
   variable_name = "gender",
@@ -161,7 +192,7 @@ bmi_condition_subgroup_settings = create_subgroup_settings(
   subgroup_definition = create_dynamic_categorize_settings(
     column = "bmi",
     cutoffs = c(25, 30),
-    category_names = c("bmi <= 25", "25 < bmi <= 30", "bmi > 30")
+    category_names = c("bmi < 25", "25 <= bmi < 30", "bmi >= 30")
   )
 )
 
@@ -191,7 +222,7 @@ ahirdi_br_condition_subgroup_settings = create_subgroup_settings(
   subgroup_definition = create_dynamic_categorize_settings(
     column = "ahirdi_br",
     cutoffs = c(15, 30),
-    category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
+    category_names = c("AHI/RDI < 15", "15 <= AHI/RDI < 30", "AHI/RDI >= 30")
   )
 )
 
@@ -201,7 +232,7 @@ psg_ahirdi_condition_subgroup_settings = create_subgroup_settings(
   subgroup_definition = create_dynamic_categorize_settings(
     column = "psg_ahirdi",
     cutoffs = c(15, 30),
-    category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
+    category_names = c("AHI/RDI < 15", "15 <= AHI/RDI < 30", "AHI/RDI >= 30")
   )
 )
 
@@ -211,7 +242,7 @@ ahirdi_overall_condition_subgroup_settings = create_subgroup_settings(
   subgroup_definition = create_dynamic_categorize_settings(
     column = "ahirdi_overall",
     cutoffs = c(15, 30),
-    category_names = c("AHI/RDI <= 15", "15 < AHI/RDI <= 30", "AHI/RDI > 30")
+    category_names = c("AHI/RDI < 15", "15 <= AHI/RDI < 30", "AHI/RDI >= 30")
   )
 )
 age_groups_subgroup_settings = create_subgroup_settings(
@@ -286,7 +317,110 @@ symptom_subgroup_settings <- create_subgroup_settings(
   variable_name = "symptom",
   subgroup_label = "symptom"
 )
+period_of_usage_subgroup_settings <- create_subgroup_settings(
+  variable_name = "period_of_usage",
+  subgroup_label = "period_of_usage"
+)
 
+xoth_hours_24_condition_subgroup_settings = create_subgroup_settings(
+  variable_name = "xoth_hours_24",
+  subgroup_label = "xoth_hours_24_condition",
+  subgroup_definition = create_dynamic_categorize_settings(
+    column = "xoth_hours_24",
+    cutoffs = c(11, 19),
+    category_names = c(
+      "ΧΟΘ <= 10", "10 < ΧΟΘ <= 18", "18 < ΧΟΘ <= 24"
+    )
+  )
+)
+other_limit_lung_subgroup_settings <- create_subgroup_settings(
+  variable_name = "other_limit_lung",
+  subgroup_label = "other_limit_lung"
+)
+kyphoscoliosis_subgroup_settings <- create_subgroup_settings(
+  variable_name = "kyphoscoliosis",
+  subgroup_label = "kyphoscoliosis"
+)
+posttb_subgroup_settings <- create_subgroup_settings(
+  variable_name = "posttb",
+  subgroup_label = "posttb"
+)
+diaphragm_malfunction_subgroup_settings <- create_subgroup_settings(
+  variable_name = "diaphragm_malfunction",
+  subgroup_label = "diaphragm_malfunction"
+)
+other_neurological_subgroup_settings <- create_subgroup_settings(
+  variable_name = "other_neurological",
+  subgroup_label = "other_neurological"
+)
+nkn_subgroup_settings <- create_subgroup_settings(
+  variable_name = "nkn",
+  subgroup_label = "nkn"
+)
+myasthenia_subgroup_settings <- create_subgroup_settings(
+  variable_name = "myasthenia",
+  subgroup_label = "myasthenia"
+)
+dmd_subgroup_settings <- create_subgroup_settings(
+  variable_name = "dmd",
+  subgroup_label = "dmd"
+)
+other_obstructive_subgroup_settings <- create_subgroup_settings(
+  variable_name = "other_obstructive",
+  subgroup_label = "other_obstructive"
+)
+obesity_subvent_subgroup_settings <- create_subgroup_settings(
+  variable_name = "obesity_subvent",
+  subgroup_label = "obesity_subvent"
+)
+xap_subgroup_settings <- create_subgroup_settings(
+  variable_name = "xap",
+  subgroup_label = "xap"
+)
+sayy_subgroup_settings <- create_subgroup_settings(
+  variable_name = "sayy",
+  subgroup_label = "sayy"
+)
+certified_education_subgroup_settings <- create_subgroup_settings(
+  variable_name = "certified_education",
+  subgroup_label = "certified_education"
+)
+family_education_subgroup_settings <- create_subgroup_settings(
+  variable_name = "family_education",
+  subgroup_label = "family_education"
+)
+emergency_instructions_subgroup_settings <- create_subgroup_settings(
+  variable_name = "emergency_instructions",
+  subgroup_label = "emergency_instructions"
+)
+physiotherapy_instructions_subgroup_settings <- create_subgroup_settings(
+  variable_name = "physiotherapy_instructions",
+  subgroup_label = "physiotherapy_instructions"
+)
+application_instructions_subgroup_settings <- create_subgroup_settings(
+  variable_name = "application_instructions",
+  subgroup_label = "application_instructions"
+)
+invasive_ventilation_subgroup_settings <- create_subgroup_settings(
+  variable_name = "invasive_ventilation",
+  subgroup_label = "invasive_ventilation"
+)
+ventilation_type_subgroup_settings <- create_subgroup_settings(
+  variable_name = "ventilation_type",
+  subgroup_label = "ventilation_type"
+)
+ventilation_status_subgroup_settings <- create_subgroup_settings(
+  variable_name = "ventilation_status",
+  subgroup_label = "ventilation_status"
+)
+ventilation_reason_subgroup_settings <- create_subgroup_settings(
+  variable_name = "ventilation_reason",
+  subgroup_label = "ventilation_reason"
+)
+tracheostomy_type_subgroup_settings <- create_subgroup_settings(
+  variable_name = "tracheostomy_type",
+  subgroup_label = "tracheostomy_type"
+)
 
 dynamic_categorize <- function(data, column, cutoffs, category_names) {
   if (length(cutoffs) != length(category_names) - 1) {
@@ -294,17 +428,17 @@ dynamic_categorize <- function(data, column, cutoffs, category_names) {
   }
   case_conditions <- list()
   case_conditions[[1]] <- glue::glue(
-    '{ column } <= cutoffs[1] ~ category_names[1]'
+    '{ column } < cutoffs[1] ~ category_names[1]'
   )
 
   for (i in seq_along(cutoffs)[-1]) {
     case_conditions[[i]] <- glue::glue(
-      '{ column } > cutoffs[i - 1] & { column } <= cutoffs[i] ~ category_names[i]'
+      '{ column } >= cutoffs[i - 1] & { column } < cutoffs[i] ~ category_names[i]'
     )
   }
 
   case_conditions[[length(cutoffs) + 1]] <- glue::glue(
-    '{ column } > cutoffs[length(cutoffs)] ~ category_names[length(category_names)]'
+    '{ column } >= cutoffs[length(cutoffs)] ~ category_names[length(category_names)]'
   )
 
   case_conditions[[length(cutoffs) + 2]] <- "TRUE ~ NA_character_"
@@ -548,12 +682,14 @@ psg_variables <- c(
   "psg_odi", "psg_ahirdi"
 )
 
-continuous_variables <- c(
+sayy_continuous_variables <- c(
   "fvc_perc", "fev1_l",	"fev_perc", "fev1_fvc", "ph", "po2", "pco2", "h3co2",
   oxymetry_variables,
   level_three_variables,
   psg_variables
 )
+
+mv_patient_ventilation <- c("period_of_usage")
 
 calculate_subgroup_percentage <- function(data, column) {
   sum(data[[column]], na.rm = T) / nrow(data) * 100
