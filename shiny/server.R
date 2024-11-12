@@ -109,7 +109,7 @@ shiny::shinyServer(function(input, output,session) {
     )
   })
 
-  observeEvent(input$analysis_table, {
+  observeEvent(list(input$analysis_table, input$menu1), {
     if (input$menu1 == "sayy") {
       new_choices_subgroup_variables <- switch(
         input$analysis_table,
@@ -155,7 +155,7 @@ shiny::shinyServer(function(input, output,session) {
         characteristics = c(
           "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups",
           "xap", "sayy", "obesity_subvent", "other_obstructive", "dmd",
-          "myastenia", "nkn", "other_neurological", "diaphragm_malfunction",
+          "myasthenia", "nkn", "other_neurological", "diaphragm_malfunction",
           "posttb", "kyphoscoliosis", "other_limit_lung"
         ),
         patient_ventilation = c(
@@ -175,7 +175,7 @@ shiny::shinyServer(function(input, output,session) {
         characteristics = c(
           "gender", "bmi_condition", "bmi_25", "bmi_30", "age_groups",
           "xap", "sayy", "obesity_subvent", "other_obstructive", "dmd",
-          "myastenia", "nkn", "other_neurological", "diaphragm_malfunction",
+          "myasthenia", "nkn", "other_neurological", "diaphragm_malfunction",
           "posttb", "kyphoscoliosis", "other_limit_lung"
         ),
         patient_ventilation = c(
