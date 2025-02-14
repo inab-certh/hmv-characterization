@@ -1,0 +1,813 @@
+---
+title: "Αναφορά ανάλυσης δεδομένων ασθενών με μηχανικό αερισμό"
+execute: 
+  cache: false
+format:
+  html: default
+---
+
+## Σενάριο 1
+
+```{r source, eval=TRUE, echo=FALSE, warning=FALSE}
+options(digits = 3)
+source("../code/connection.R")
+source("../code/load_tables.R")
+source("../code/helper.R")
+```
+
+```{r subgroup_settings, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+subgroup_settings_age <- list(
+  age_groups = create_subgroup_settings(
+    variable_name = "age_groups",
+    subgroup_label = "age_groups"
+  )
+)
+
+subgroup_settings_gender <- list(
+  gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  )
+)
+
+subgroup_settings_gender_age <- list(
+  gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  ),
+  age_groups = create_subgroup_settings(
+    variable_name = "age_groups",
+    subgroup_label = "age_groups"
+  )
+)
+```
+
+```{r data_initial_manipulation, eval=TRUE, echo=FALSE, warning=TRUE}
+characteristics_overall <- characteristics |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::relocate(pat_id_id, visit_id, visit_date)
+
+patients_overall <- patients |>
+  dplyr::left_join(gender, by = c("gender_id" = "id")) |>
+  dplyr::left_join(profession, by = c("profession_id" = "id")) |>
+  dplyr::left_join(education, by = c("education_id" = "id")) |>
+  dplyr::left_join(condition, by = c("pat_condition_id" = "id")) |>
+  dplyr::select(-c(education_id, gender_id, profession_id, pat_condition_id)) |>
+  dplyr::mutate(
+    ma_subscription_date = lubridate::as_date(ma_subscription_date),
+    age = lubridate::year(ma_subscription_date) - birth_year
+  )
+
+
+patients_mv <- patients_overall |>
+  dplyr::filter(pat_condition == "ΜΗΧΑΝΙΚΟΣ ΑΕΡΙΣΜΟΣ")
+
+breath_and_sleep_test_overall <- breath_and_sleep_test |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::relocate(pat_id_id, visit_id, visit_date)
+
+
+characteristics_overall <- characteristics |>
+  dplyr::select(-id) |>
+  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
+  dplyr::relocate(pat_id_id, visit_id, visit_date) |>
+  dplyr::mutate(
+    bmi = weight / (height / 100) ** 2
+  ) |>
+  dplyr::relocate(bmi, .after = height) |>
+  dplyr::left_join(
+    patients_overall |> dplyr::select(id, age, gender),
+    by = c("pat_id_id" = "id")
+  ) |>
+  dplyr::left_join(
+    breath_and_sleep_test_overall |> dplyr::select(visit_id, ahirdi_br),
+    by = "visit_id"
+  )
+
+# This returns a data frame with 6200 patients
+characteristics_mv <- characteristics_overall |>
+  dplyr::filter(pat_id_id %in% patients_mv$id)
+
+characteristics_mv_first_visit <- characteristics_mv |>
+  dplyr::group_by(pat_id_id) |>
+  dplyr::arrange(visit_date) |>
+  dplyr::slice(1L)
+
+
+patient_ventilation_overall <- patient_ventilation |>
+  dplyr::left_join(visit, by = c("visit_id" = "id"))
+
+patient_ventilation_first_visit <- patient_ventilation_overall |> 
+  dplyr::filter(pat_id_id %in% patients_mv$id) |> 
+  dplyr::select(-id) |> 
+  dplyr::left_join(patients_mv, by = c("pat_id_id" = "id")) |> 
+  dplyr::group_by(pat_id_id) |>
+  dplyr::arrange(visit_date) |>
+  dplyr::slice_head(n = 1) |> 
+  dplyr::ungroup() |> 
+  dplyr::relocate(pat_id_id, pat_id, visit_date)
+  
+```
+
+Σε σύνολο `r nrow(patients_mv)` ασθενών με καταγραφή μηχανικού αερισμού, έχουμε
+δεδομένα σχετικά με τη θεραπεία τους για τους
+`r nrow(patient_ventilation_first_visit)`.
+Πληροφορίες σχετικά με το φύλο φαίνονται στον παρακάτω πίνακα:
+
+```{r gender_distribution, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(
+  gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  )
+)
+result <- count_subgroups_with_percentage(
+  data = patients_mv,
+  subgroup_settings = subgroup_settings,
+  target_variable = "gender"
+) |> 
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΓΝΩΣΤΟ")
+    )
+  ) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+gender_distribution <- result
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_gender_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result,
+  caption = "Ποσοστά φύλου στους ασθενείς με μηχανικό αερισμό."
+) |> 
+  gtExtras::gt_plt_bar_pct(
+    column = percentage,
+    scaled = TRUE,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    fill = "forestgreen"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+
+```
+
+```{r age_group_distribution, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+subgroup_settings <- list(
+  age_groups = create_subgroup_settings(
+    variable_name = "age_groups",
+    subgroup_label = "age_groups"
+  )
+)
+
+result <- patients_mv |> 
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "NA",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |> 
+count_subgroups_with_percentage(
+  subgroup_settings = subgroup_settings,
+  target_variable = "age_groups"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_age_group_distribution.csv"
+  )
+)
+
+gt::gt(
+  data = result,
+  caption = "Πλήθος ασθενών ανά ηλικιακή ομάδα."
+) |> 
+  gtExtras::gt_plt_bar_pct(
+    column = percentage,
+    scaled = TRUE,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    fill = "forestgreen"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r age_group_gender_distribution, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+subgroup_settings <- list(
+   gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  ),
+  age_groups = create_subgroup_settings(
+    variable_name = "age_groups",
+    subgroup_label = "age_groups"
+  )
+)
+
+result <- patients_mv |> 
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "NA",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |> 
+count_subgroups_with_percentage(
+  subgroup_settings = subgroup_settings,
+  target_variable = "age_groups"
+) |> 
+  dplyr::select(-total) |>
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_gender_age_group_distribution.csv"
+  )
+)
+
+  gt::gt(
+    data = result,
+    caption = "Πλήθος ασθενών ανά ηλικιακή ομάδα."
+  ) |> 
+  gtExtras::gt_plt_bar_pct(
+    column = percentage,
+    scaled = TRUE,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    fill = "forestgreen"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+
+
+```{r xoth_24_gender, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(
+  gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  )
+)
+
+result <- run_within_subgroups(
+  data = patient_ventilation_first_visit,
+  subgroup_settings = subgroup_settings,
+  target_variable = "xoth_hours_24",
+  fun = mean,
+  na.rm = TRUE
+) |> 
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΓΝΩΣΤΟ")
+    )
+  )
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_gender_xoth.csv"
+  )
+)
+
+  gt::gt(
+    data = result,
+    caption = "Μέση τιμή ΧΟΘ ανά φύλο."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = xoth_hours_24,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number",
+    accuracy = .01
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+
+```
+
+```{r xoth_24_age, eval=TRUE, echo=FALSE, warning=FALSE}
+subgroup_settings <- list(
+  age_groups = create_subgroup_settings(
+    variable_name = "age_groups",
+    subgroup_label = "age_groups"
+  )
+)
+result <- patient_ventilation_first_visit |> 
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "NA",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |> 
+  run_within_subgroups(
+    subgroup_settings = subgroup_settings,
+    target_variable = "xoth_hours_24",
+    fun = mean,
+    na.rm = TRUE
+  )
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_age_group_xoth.csv"
+  )
+)
+
+  gt::gt(
+    data = result,
+    caption = "Μέση τιμή ΧΟΘ ανά ηλικιακή ομάδα."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = xoth_hours_24,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number",
+    accuracy = .01
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r xoth_24_gender_age, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+subgroup_settings <- list(
+  gender = create_subgroup_settings(
+    variable_name = "gender",
+    subgroup_label = "gender"
+  ),
+  age_groups = create_subgroup_settings(
+    variable_name = "age_groups",
+    subgroup_label = "age_groups"
+  )
+)
+
+
+result <- patient_ventilation_first_visit |> 
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "NA",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |> 
+run_within_subgroups(
+  subgroup_settings = subgroup_settings,
+  target_variable = "xoth_hours_24",
+  fun = mean,
+  na.rm = TRUE
+) |> 
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΓΝΩΣΤΟ")
+    )
+  )
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_gender_age_group_xoth.csv"
+  )
+)
+  gt::gt(
+    data = result,
+    caption = "Μέση τιμή ΧΟΘ ανά φύλο και ηλικία."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = xoth_hours_24,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number",
+    accuracy = .01
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+
+```
+
+
+```{r count_instructions_gender, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+
+result <- patient_ventilation_first_visit |> 
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΓΝΩΣΤΟ")
+    )
+  ) |> 
+  dplyr::group_by(gender) |> 
+  dplyr::summarise(
+    dplyr::across(
+      .cols = c(
+    "application_instructions", "physiotherapy_instructions",
+    "emergency_instructions", "family_education", "certified_education"
+      ),
+    .fns = sum,
+    na.rm = TRUE
+    )
+  ) |> 
+  dplyr::ungroup() |> 
+  tidyr::pivot_longer(
+    cols = c(
+    "application_instructions", "physiotherapy_instructions",
+    "emergency_instructions", "family_education", "certified_education"
+    ),
+    names_to = "variable",
+    values_to = "n"
+  ) |> 
+  dplyr::left_join(
+    gender_distribution |> 
+      dplyr::rename("n_gender" = "n") |> 
+      dplyr::select(-percentage),
+    by = "gender"
+  ) |> 
+  dplyr::mutate(percent = n / n_gender) |> 
+  dplyr::select(-n_gender) |> 
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_gender_count_instructions.csv"
+  )
+)
+
+ gt::gt(
+    data = result,
+    caption = "Πλήθος ασθενών που έλαβαν οδηγίες και αντίστοιχο εκπαιδευτικό υπόβαθρο, ανά φύλο."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = n,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = percent,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "percent",
+    text_color = "black"
+  ) |>  
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r count_instructions_age_group, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+result <- patient_ventilation_first_visit |> 
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "NA",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |> 
+  run_within_subgroups(
+  subgroup_settings = subgroup_settings_age,
+  target_variable = c(
+    "application_instructions", "physiotherapy_instructions",
+    "emergency_instructions", "family_education", "certified_education"
+  ),
+  fun = sum,
+  na.rm = TRUE
+) |> 
+  dplyr::ungroup()
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_age_group_count_instructions.csv"
+  )
+)
+
+ gt::gt(
+    data = result,
+    caption = "Πλήθος ασθενών που έλαβαν οδηγίες και αντίστοιχο εκπαιδευτικό υπόβαθρο, ανά ηλικιακή ομάδα."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = application_instructions,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = physiotherapy_instructions,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = emergency_instructions,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = family_education,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = certified_education,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r count_instructions_gender_age_group, eval=TRUE, echo=FALSE, warning=FALSE, message=FALSE}
+result <- patient_ventilation_first_visit |> 
+  dplyr::mutate(
+    age_groups = dplyr::case_when(
+      is.na(age) ~ "NA",
+      age <= 18 ~ "0-18",
+      age < 30 ~ "19-30",
+      age < 40 ~ "31-40",
+      age < 50 ~ "41-50",
+      age < 60 ~ "51-60",
+      age < 70 ~ "61-70",
+      TRUE ~ "71+"
+    )
+  ) |> 
+  run_within_subgroups(
+  subgroup_settings = subgroup_settings_gender_age,
+  target_variable = c(
+    "application_instructions", "physiotherapy_instructions",
+    "emergency_instructions", "family_education", "certified_education"
+  ),
+  fun = sum,
+  na.rm = TRUE
+) |> 
+  dplyr::ungroup() |> 
+  dplyr::mutate(
+    gender = ifelse(is.na(gender), "ΑΓΝΩΣΤΟ", gender),
+    gender = factor(
+      gender,
+      levels = c("ΑΝΔΡΑΣ", "ΓΥΝΑΙΚΑ", "ΑΓΝΩΣΤΟ")
+    )
+  )
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_gender_age_group_count_instructions.csv"
+  )
+)
+
+ gt::gt(
+    data = result,
+    caption = "Πλήθος ασθενών που έλαβαν οδηγίες και αντίστοιχο εκπαιδευτικό υπόβαθρο, ανά φύλο και ηλικιακή ομάδα."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = application_instructions,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = physiotherapy_instructions,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = emergency_instructions,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = family_education,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = certified_education,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r other_disease, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+characteristics_mv_first_visit |> 
+  dplyr::ungroup() |> 
+  dplyr::summarise(
+    dplyr::across(
+      .cols = c(
+        "dmd", "myasthenia", "nkn", "other_neurological",
+        "diaphragm_malfunction", "posttb", "kyphoscoliosis",
+        "other_limit_lung"
+      ),
+      .fns = sum
+    )
+  ) |> 
+  tidyr::pivot_longer(
+    cols = tidyselect::everything(),
+    names_to = "disease_subcategories",
+    values_to = "n"
+  ) |> 
+ gt::gt(
+    caption = "Πλήθος ασθενών με συγκεκριμένες υποκατηγορίες βασικής πάθησης."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = n,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r disease_subcategories_gender, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+
+characteristics_mv_first_visit |> 
+  dplyr::ungroup() |> 
+  dplyr::group_by(gender) |> 
+  dplyr::summarise(
+    dplyr::across(
+      .cols = c(
+        "dmd", "myasthenia", "nkn", "other_neurological",
+        "diaphragm_malfunction", "posttb", "kyphoscoliosis",
+        "other_limit_lung"
+      ),
+      .fns = sum
+    )
+  ) |> 
+  tidyr::pivot_longer(
+    cols = c(
+        "dmd", "myasthenia", "nkn", "other_neurological",
+        "diaphragm_malfunction", "posttb", "kyphoscoliosis",
+        "other_limit_lung"
+      ),
+    names_to = "disease_subcategories",
+    values_to = "n"
+  ) |> 
+  dplyr::left_join(
+    gender_distribution |> 
+      dplyr::rename("n_gender" = "n") |> 
+      dplyr::select(-percentage),
+    by = "gender"
+  ) |> 
+  dplyr::mutate(percent = n / n_gender) |> 
+  dplyr::select(-n_gender) |> 
+ gt::gt(
+    caption = "Πλήθος ασθενών ανά φύλο με συγκεκριμένες υποκατηγορίες βασικής πάθησης."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = n,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = percent,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "percent"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+```
+
+```{r disease_subcategories_combinations, eval=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+disease_subcategories <- c(
+  "dmd", "myasthenia", "nkn", "other_neurological",
+  "diaphragm_malfunction", "posttb", "kyphoscoliosis",
+  "other_limit_lung"
+)
+
+result <- characteristics_mv_first_visit |> 
+  dplyr::ungroup() |> 
+    dplyr::select(disease_subcategories) |> 
+  dplyr::rowwise() |> 
+  dplyr::mutate(combination_length = sum(dplyr::c_across(tidyselect::everything()))) |> 
+  dplyr::filter(combination_length > 1)   |> 
+  dplyr::group_by(across(everything())) |> 
+  dplyr::summarise(count = dplyr::n()) |> 
+  dplyr::ungroup() |> 
+  dplyr::mutate(combination_group = letters[1:dplyr::n()]) |> 
+  tidyr::nest(.by = c("combination_group", "combination_length", "count")) |> 
+  dplyr::mutate(
+    combination = purrr::map_chr(
+      data, ~ paste(disease_subcategories[as.logical(unlist(.x))], collapse = " + ")
+    )
+  ) |> 
+  dplyr::select(-c(data, combination_group)) |> 
+  dplyr::ungroup() |> 
+  dplyr::relocate(combination_length, combination)
+
+readr::write_csv(
+  result,
+  file = file.path(
+    "results",
+    "PAMA1_combination_disease_subcategories.csv"
+  )
+)
+
+ gt::gt(
+   data = result,
+    caption = "Πλήθος ασθενών με συνδυασμούς υποκατηγοριών βασικής πάθησης."
+  ) |> 
+  gtExtras::gt_plt_bar(
+    column = count,
+    width = 80,
+    font_size = "12px",
+    labels = TRUE,
+    color = "forestgreen",
+    scale_type = "number"
+  ) |> 
+  gt::tab_options(table.width = gt::pct(100))
+
+```
