@@ -1,16 +1,8 @@
 # ===
 # ---- Helper function ----
 # Joins the foreign keys
-join_lookup <- function(df, lkp, id_col, value_col, new_name = NULL) {
-  new_name <- new_name %||% value_col
-  df |>
-    dplyr::left_join(lkp, by = setNames("id", id_col)) |>
-    dplyr::rename(!!new_name := !!value_col) |>
-    dplyr::select(-dplyr::all_of(id_col))
-}
-
-
 source("code/connection.R")
+source("code/helper.R")
 
 conn <- db_connect()
 
@@ -42,7 +34,6 @@ extra_accompanying_disease <- DBI::dbGetQuery(
 
 
 characteristics_overall <- characteristics |>
-  # dplyr::select(-id) |>
   dplyr::left_join(visit, by = c("visit_id" = "id")) |>
   join_lookup(extra_myopathy, "extra_myopathy_id", "myopathy") |>
   join_lookup(bad_habit, "alcohol_id", "bad_habit_status", "alcohol") |>
@@ -102,16 +93,24 @@ characteristics_sayy <- characteristics_overall |>
   dplyr::mutate(visit_date = as.Date(visit_date)) |>
   dplyr::arrange(pat_id_id, visit_date) |>
   dplyr::distinct(pat_id_id, .keep_all = TRUE) |>
-  dplyr::mutate(age = as.integer(format(visit_date, "%Y")) - birth_year) |> 
+  dplyr::mutate(age = as.integer(format(visit_date, "%Y")) - birth_year) |>
   dplyr::mutate(
     gender = dplyr::case_when(
       gender == "ΑΝΔΡΑΣ" ~ "Male",
       gender == "ΓΥΝΑΙΚΑ" ~ "Female",
       gender == "ΑΛΛΟ" ~ "Other",
       TRUE ~ gender
+    ),
+    bmi_group = dplyr::case_when(
+      bmi < 25              ~ "Normal BMI",
+      bmi >= 25 & bmi < 30  ~ "Overweight",
+      bmi >= 30             ~ "Obese",
+      .default = NA_character_
     )
+  ) |>
+  dplyr::mutate(
+    bmi_group = factor(bmi_group, levels = c("Normal BMI", "Overweight", "Obese"))
   )
-
 # --- Variable lists ---
 binary_vars <- c(
   "ALS", "other_limit_lung", "diabetes_type_II", "duchenne_muscular_dystrophy",
@@ -121,20 +120,69 @@ binary_vars <- c(
 cat_vars <- c(
   "alcohol", "physical_activity", "nutrition", "cardiopathy",
   "underlying_disease", "smoker", "profession", "pat_condition", "gender",
-  "accompanying_disease"
+  "accompanying_disease", "bmi_group"
 )
 
 char_vars <- c(
-  "age", "weight", "height", "bmi", "ALS", "other_limit_lung",
+  "gender", "age", "weight", "height", "bmi", "bmi_group" ,"ALS", "other_limit_lung",
   "diabetes_type_II", "stroke", "arterial_hypertension",
   "pulmonary_hypertension", "alcohol", "physical_activity", "nutrition",
   "cardiopathy", "underlying_disease", "accompanying_disease", "smoker",
   "profession", "pat_condition"
 )
 
-result <- characteristics_sayy |>
+result_bmi <- characteristics_sayy |>
   dplyr::mutate(
-    dplyr::across(dplyr::all_of(cat_vars), ~ forcats::fct_na_value_to_level(as.factor(.x), level = "(Missing)")),
+    dplyr::across(
+      dplyr::all_of(cat_vars), ~ forcats::fct_na_value_to_level(as.factor(.x), level = "(Missing)")
+    ),
+    dplyr::across(dplyr::all_of(binary_vars), as.integer),
+    gender = factor(gender, levels = c("Female", "Male", "Other"))
+  ) |>
+  dplyr::select(dplyr::all_of(char_vars), gender) |>
+  gtsummary::tbl_summary(
+    by      = bmi_group,
+    missing = "no",  # NAs are now explicit "(Missing)" levels, not hidden
+    type    = purrr::map(binary_vars, ~ "dichotomous") |> purrr::set_names(binary_vars),
+    value   = purrr::map(binary_vars, ~ 1)             |> purrr::set_names(binary_vars),
+    statistic = list(gtsummary::all_continuous() ~ "{median} ({p25}, {p75})"),
+    digits    = list(gtsummary::all_continuous() ~ 1)
+  ) |>
+  gtsummary::add_overall(last = TRUE) |>
+  gtsummary::bold_labels()
+
+result_gender_bmi <- characteristics_sayy |>
+  dplyr::mutate(
+    dplyr::across(
+      dplyr::all_of(cat_vars), ~ forcats::fct_na_value_to_level(as.factor(.x), level = "(Missing)")
+    ),
+    dplyr::across(
+      dplyr::all_of(binary_vars), ~ factor(.x, levels = c(0, 1))
+    ),
+    gender    = factor(gender, levels = c("Female", "Male", "Other")),
+    bmi_group = factor(bmi_group, levels = c("Normal BMI", "Overweight", "Obese"))
+  ) |>
+  dplyr::select(dplyr::all_of(char_vars), gender, bmi_group) |>
+  gtsummary::tbl_strata(
+    strata = bmi_group,
+    .tbl_fun = ~ .x |>
+      gtsummary::tbl_summary(
+        by      = gender,
+        missing = "no",
+        type    = purrr::map(binary_vars, ~ "dichotomous") |> purrr::set_names(binary_vars),
+        value   = purrr::map(binary_vars, ~ "1")           |> purrr::set_names(binary_vars),
+        statistic = list(gtsummary::all_continuous() ~ "{median} ({p25}, {p75})"),
+        digits    = list(gtsummary::all_continuous() ~ 1)
+      ) |>
+      gtsummary::add_overall(last = TRUE) |>
+      gtsummary::bold_labels()
+  )
+
+result_gender <- characteristics_sayy |>
+  dplyr::mutate(
+    dplyr::across(
+      dplyr::all_of(cat_vars), ~ forcats::fct_na_value_to_level(as.factor(.x), level = "(Missing)")
+    ),
     dplyr::across(dplyr::all_of(binary_vars), as.integer),
     gender = factor(gender, levels = c("Female", "Male", "Other"))
   ) |>
@@ -149,6 +197,10 @@ result <- characteristics_sayy |>
   ) |>
   gtsummary::add_overall(last = TRUE) |>
   gtsummary::bold_labels()
+
+save_gtsummary(result_gender, "characteristics_by_gender", "results")
+save_gtsummary(result_bmi, "characteristics_by_bmi", "results")
+save_gtsummary(result_gender_bmi, "characteristics_by_gender_bmi", "results")
 
 # ===================================================================
 # Age plots
@@ -216,8 +268,9 @@ ggplot2::ggsave(
   dpi = 800,
 )
 
-
-
+# ===================================================================
+# Breath and sleep tests
+# ===================================================================
 
 breath_and_sleep_test_sayy <- breath_and_sleep_test |>
   dplyr::select(-"id") |>

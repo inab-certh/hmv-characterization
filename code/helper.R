@@ -1,194 +1,63 @@
-create_subgroup_settings <- function(
-    variable_name,
-    subgroup_label,
-    subgroup_definition = NULL
-) {
-  list(
-    variable_name = variable_name,
-    subgroup_label = subgroup_label,
-    subgroup_definition = subgroup_definition
-  )
+join_lookup <- function(df, lkp, id_col, value_col, new_name = NULL) {
+  new_name <- new_name %||% value_col
+  df |>
+    dplyr::left_join(lkp, by = setNames("id", id_col)) |>
+    dplyr::rename(!!new_name := !!value_col) |>
+    dplyr::select(-dplyr::all_of(id_col))
 }
 
-dynamic_categorize <- function(data, column, cutoffs, category_names) {
-  if (length(cutoffs) != length(category_names) - 1) {
-    stop("Number of cut-offs must be one less than the number of labels")
-  }
-  case_conditions <- list()
-  case_conditions[[1]] <- glue::glue('{ column } <= cutoffs[1] ~ category_names[1]')
-
-  for (i in seq_along(cutoffs)[-1]) {
-    case_conditions[[i]] <- glue::glue(
-      '{ column } > cutoffs[i - 1] & { column } <= cutoffs[i] ~ category_names[i]'
+save_gtsummary <- function(tbl, filename, path = ".") {
+  stopifnot(inherits(tbl, "gtsummary"))
+  base_path <- file.path(path, filename)
+  gt_tbl <- gtsummary::as_gt(tbl)
+  
+  gt::gtsave(gt_tbl, glue::glue("{base_path}.html"))
+  gt::gtsave(gt_tbl, glue::glue("{base_path}.pdf"))
+  
+  clean <- function(x) gsub("\\*\\*|__", "", x)
+  
+  if (inherits(tbl, "tbl_strata")) {
+    strata_labels <- clean(as.character(tbl$df_strata[[1]]))
+    
+    sub_dfs <- purrr::map(tbl$tbls, \(subtbl) {
+      gtsummary::as_tibble(subtbl) |>
+        (\(d) purrr::set_names(d, make.unique(clean(names(d)))))() |>
+        dplyr::mutate(dplyr::across(dplyr::everything(), clean))
+    })
+    
+    char_col   <- sub_dfs[[1]][, 1, drop = FALSE]
+    strata_dfs <- purrr::map(sub_dfs, \(d) d[, -1, drop = FALSE])
+    xlsx_df    <- dplyr::bind_cols(char_col, purrr::reduce(strata_dfs, dplyr::bind_cols))
+    
+    n_strata_cols <- purrr::map_int(strata_dfs, ncol)
+    col_starts    <- cumsum(c(2L, n_strata_cols[-length(n_strata_cols)]))  # offset by 1 for char col
+    col_ends      <- col_starts + n_strata_cols - 1L
+    
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Table")
+    
+    purrr::pwalk(
+      list(strata_labels, col_starts, col_ends),
+      \(label, start, end) {
+        openxlsx::writeData(wb, "Table", label, startCol = start, startRow = 1)
+        if (end > start) openxlsx::mergeCells(wb, "Table", cols = start:end, rows = 1)
+        openxlsx::addStyle(wb, "Table", rows = 1, cols = start,
+          style = openxlsx::createStyle(textDecoration = "bold", halign = "center"))
+      }
     )
+    
+    openxlsx::writeData(wb, "Table", xlsx_df, startRow = 2)
+    
+  } else {
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Table")
+    xlsx_df <- tbl |>
+      gtsummary::as_tibble() |>
+      (\(df) purrr::set_names(df, make.unique(clean(names(df)))))() |>
+      dplyr::mutate(dplyr::across(dplyr::everything(), clean))
+    openxlsx::writeData(wb, "Table", xlsx_df)
   }
-
-  case_conditions[[length(cutoffs) + 1]] <- glue::glue(
-    '{ column } > cutoffs[length(cutoffs)] ~ category_names[length(category_names)]'
-  )
-
-  case_conditions[[length(cutoffs) + 2]] <- "TRUE ~ NA_character_"
-
-  caseArgs <- dplyr::tibble(
-    conditions = sapply(case_conditions, rlang::parse_expr)
-  )
-  data |>
-    dplyr::mutate(result = dplyr::case_when(!!!caseArgs$conditions)) |>
-    dplyr::mutate(result = factor(result,levels = category_names))
+  
+  openxlsx::saveWorkbook(wb, glue::glue("{base_path}.xlsx"), overwrite = TRUE)
+  message(glue::glue("Saved: .html, .pdf, .xlsx in '{path}'"))
 }
-
-
-
-
-
-create_dynamic_categorize_settings <- function(column, cutoffs, category_names) {
-  return(
-    list(
-      column = column,
-      cutoffs = cutoffs,
-      category_names = category_names
-    )
-  )
-}
-
-count_subgroups <- function(data, subgroup_settings) {
-  targeted_subgroups <- rep("", length(subgroup_settings))
-  for (i in seq_along(subgroup_settings)) {
-    if (!is.null(subgroup_settings[[i]]$subgroup_definition)) {
-      subgroup_definition_function <- function(data, subgroup_definition) {
-        do.call(
-          dynamic_categorize,
-          args = list(
-            data = data,
-            column = subgroup_definition$column,
-            cutoffs = subgroup_definition$cutoffs,
-            category_names = subgroup_definition$category_names
-          )
-        )
-      }
-      data <- data |>
-        subgroup_definition_function(
-          subgroup_definition = subgroup_settings[[i]]$subgroup_definition
-        ) |>
-        dplyr::rename("{subgroup_settings[[i]]$subgroup_label}" := "result")
-    }
-    targeted_subgroups[i] <- subgroup_settings[[i]]$subgroup_label
-  }
-
-  data |>
-    dplyr::group_by(dplyr::across(targeted_subgroups)) |>
-    dplyr::summarise(n = dplyr::n()) |>
-    dplyr::arrange(dplyr::across(targeted_subgroups))
-}
-
-count_within_subgroups <- function(data, subgroup_settings, count_variable) {
-  targeted_subgroups <- rep("", length(subgroup_settings))
-  for (i in seq_along(subgroup_settings)) {
-    if (!is.null(subgroup_settings[[i]]$subgroup_definition)) {
-      subgroup_definition_function <- function(data, subgroup_definition) {
-        do.call(
-          dynamic_categorize,
-          args = list(
-            data = data,
-            column = subgroup_definition$column,
-            cutoffs = subgroup_definition$cutoffs,
-            category_names = subgroup_definition$category_names
-          )
-        )
-      }
-      data <- data |>
-        subgroup_definition_function(
-          subgroup_definition = subgroup_settings[[i]]$subgroup_definition
-        ) |>
-        dplyr::rename("{subgroup_settings[[i]]$subgroup_label}" := "result")
-    }
-    targeted_subgroups[[i]] <- subgroup_settings[[i]]$subgroup_label
-  }
-
-  data |>
-    dplyr::group_by(dplyr::across(targeted_subgroups)) |>
-    dplyr::summarise(n = sum(get(count_variable)))
-}
-
-run_within_subgroups <- function(data, subgroup_settings, target_variable, fun, ...) {
-  targeted_subgroups <- rep("", length(subgroup_settings))
-  for (i in seq_along(subgroup_settings)) {
-    if (!is.null(subgroup_settings[[i]]$subgroup_definition)) {
-      subgroup_definition_function <- function(data, subgroup_definition) {
-        do.call(
-          dynamic_categorize,
-          args = list(
-            data = data,
-            column = subgroup_definition$column,
-            cutoffs = subgroup_definition$cutoffs,
-            category_names = subgroup_definition$category_names
-          )
-        )
-      }
-      data <- data |>
-        subgroup_definition_function(
-          subgroup_definition = subgroup_settings[[i]]$subgroup_definition
-        ) |>
-        dplyr::rename("{subgroup_settings[[i]]$subgroup_label}" := "result")
-    }
-    targeted_subgroups[[i]] <- subgroup_settings[[i]]$subgroup_label
-  }
-
-  data |>
-    dplyr::group_by(dplyr::across(targeted_subgroups)) |>
-    dplyr::summarise_at(target_variable, fun, ...) |>
-    dplyr::ungroup()
-}
-
-
-count_subgroups_with_percentage <- function(data, subgroup_settings, target_variable) {
-  targeted_subgroups <- rep("", length(subgroup_settings))
-  for (i in seq_along(subgroup_settings)) {
-    if (!is.null(subgroup_settings[[i]]$subgroup_definition)) {
-      subgroup_definition_function <- function(data, subgroup_definition) {
-        do.call(
-          dynamic_categorize,
-          args = list(
-            data = data,
-            column = subgroup_definition$column,
-            cutoffs = subgroup_definition$cutoffs,
-            category_names = subgroup_definition$category_names
-          )
-        )
-      }
-      data <- data |>
-        subgroup_definition_function(
-          subgroup_definition = subgroup_settings[[i]]$subgroup_definition
-        ) |>
-        dplyr::rename("{subgroup_settings[[i]]$subgroup_label}" := "result")
-    }
-    targeted_subgroups[i] <- subgroup_settings[[i]]$subgroup_label
-  }
-
-  subgroups_without_target_variable <- targeted_subgroups[-which(targeted_subgroups == target_variable)]
-
-  data |> dplyr::group_by(dplyr::across(subgroups_without_target_variable)) |>
-    tidyr::nest() |>
-    dplyr::mutate(
-      total = purrr::map_dbl(data, nrow),
-    ) |>
-    tidyr::unnest(data) |>
-    dplyr::ungroup() |>
-    dplyr::group_by(
-      dplyr::across(
-        c(subgroups_without_target_variable, target_variable, total)
-      )
-    ) |>
-    tidyr::nest() |>
-    dplyr::mutate(
-      n = purrr::map_dbl(data, nrow),
-      percentage = n / total * 100
-    ) |>
-    dplyr::select(-data) |>
-    dplyr::relocate(total, .after = n) |>
-    dplyr::arrange(dplyr::across(c(subgroups_without_target_variable, target_variable))) |>
-    dplyr::ungroup()
-}
-
-
-
