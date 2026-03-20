@@ -1,0 +1,40 @@
+﻿greek_name,english_name,legacy_column_name,measurement_type
+Βίαιη ζωτική χωρητικότητα,FVC,fvc_l,pulmonary_function_tests
+Βίαιη ζωτική χωρητικότητα ως ποσοστό επί της προβλεπόμενης,FVC%,fvc_perc,pulmonary_function_tests
+Βίαια εκπνεόμενος όγκος στο 1ο δευτερόλεπτο,FEV1,fev1_l,pulmonary_function_tests
+Ποσοστό FEV1,FEV1%,fev_perc,pulmonary_function_tests
+Δείκτης FEV1/FVC,FEV1/FVC,fev1_fvc,pulmonary_function_tests
+FEV25%-75%,FEV25%-75%,fev25_75,pulmonary_function_tests
+PH,PH,ph,pulmonary_function_tests
+Μερική πίεση οξυγόνου,PaO2,po2,pulmonary_function_tests
+Μερική πίεση διοξειδίου του άνθρακα,PaCO2,pco2,pulmonary_function_tests
+Μέγιστη εισπνευστική ροή (PINS),PIF,pins,pulmonary_function_tests
+Μέγιστη εκπνευστική ροή (PEX),PEF,pex,pulmonary_function_tests
+Μέγιστης ρινική εισπνευστική πίεση (SNIP),SNIP,snip,pulmonary_function_tests
+Μέγιστη ροή βήχα (PCF),PCF,pcf,pulmonary_function_tests
+Μέσος κορεσμός οξυγόνου στη νυχτερινή οξυμετρία,Mean SpO2,avsao2_oxy,nocturnal_oxymetry
+Ελάχιστος κορεσμός οξυγόνου στη νυχτερινή οξυμετρία,Min SpO2,minsao2_oxy,nocturnal_oxymetry
+Χρόνος κορεσμού οξυγόνου κάτω από 90% στη νυχτερινή οξυμετρία,T90,t90_oxy,nocturnal_oxymetry
+Δείκτης αποκορεσμού οξυγόνου στη νυχτερινή οξυμετρία,ODI,odi_oxy,nocturnal_oxymetry
+Συνολικός χρόνος καταγραφής στην καταγραφή τύπου III,TRT,record_duration,"sleep_testing_type_3"
+AHI/RDI στην καταγραφή τύπου III,AHI/RDI,ahirdi_br,"sleep_testing_type_3"
+Μέσος κορεσμός οξυγόνου στην καταγραφή τύπου III,Mean SpO2,avsao2_br,"sleep_testing_type_3"
+Ελάχιστος κορεσμός οξυγόνου στην καταγραφή τύπου III,Min SpO2,minsao2_br,"sleep_testing_type_3"
+Χρόνος κορεσμού οξυγόνου κάτω από 90% στην καταγραφή τύπου III,T90,t90_br,"sleep_testing_type_3"
+Δείκτης αποκορεσμού οξυγόνου στην καταγραφή τύπου III,ODI,odi_br,"sleep_testing_type_3"
+Συνολικός χρόνος καταγραφής στην πολυπνογραφία,TRT,psg_trt,polysomnography
+Συνολικός χρόνος ύπνου,TST,psg_tst,polysomnography
+Χρόνος έναρξης ύπνου,SOL,psg_sl,polysomnography
+Αποδοτικότητα ύπνου,SE,psg_se,polysomnography
+Δείκτης άπνοιας,AHI,psg_ai,polysomnography
+Χρόνος αφύπνισης μετά την έναρξη του ύπνου,WASO,waso,polysomnography
+Στάδιο Ν1,Stage N1 (%),psg_n1,polysomnography
+Στάδιο Ν2,Stage N2 (%),psg_n2,polysomnography
+Στάδιο Ν3,Stage N3 (%),psg_n3,polysomnography
+REM,REM (%),psg_rem,polysomnography
+Ροχαλητό,Snore (%),psg_snore,polysomnography
+AHI/RDI στην πολυπνογραφία,AHI/RDI,psg_ahirdi,polysomnography
+Μέσος κορεσμός οξυγόνου στην πολυπνογραφία,Mean SpO2,psg_avsao2,polysomnography
+Χρόνος κορεσμού οξυγόνου κάτω από 90% στην πολυπνογραφία,Min SpO2,psg_minsao2,polysomnography
+Χρόνος κορεσμού οξυγόνου κάτω από 90% στην πολυπνογραφία,T90,psg_t90,polysomnography
+Δείκτης αποκορεσμού οξυγόνου στην πολυπνογραφία,ODI,psg_odi,polysomnography
