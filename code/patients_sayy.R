@@ -283,22 +283,6 @@ breath_and_sleep_test_sayy <- breath_and_sleep_test |>
     by = c("pat_id" = "id")
   )
 
-
-
-breath_and_sleep_test_sayy <- breath_and_sleep_test |>
-  dplyr::select(-id) |>
-  dplyr::left_join(visit, by = c("visit_id" = "id")) |>
-  dplyr::rename(pat_id = pat_id_id) |>
-  dplyr::relocate(c(pat_id, visit_id, visit_date)) |>
-  dplyr::filter(pat_id %in% patients_sayy$id) |>
-  dplyr::right_join(
-    patients_sayy |> dplyr::select(c(id, gender)),
-    by = c("pat_id" = "id")
-  ) |>
-  dplyr::mutate(visit_date = as.Date(visit_date)) |>
-  dplyr::arrange(pat_id, visit_date) |>
-  dplyr::distinct(pat_id, .keep_all = TRUE)
-
 binary_vars_dx <- c(
   "daytime_hypercapnia", "nocturnal_hypoventilation", "hypoxemia",
   "overnight_oximetry", "level_three_rec", "polysomnography",
@@ -314,116 +298,32 @@ continuous_vars_dx <- c(
   "psg_n1", "psg_n2", "psg_n3", "psg_rem", "psg_snore",
   "psg_avsao2", "psg_minsao2", "psg_t90", "odi_br", "psg_ahirdi", "psg_odi","record_duration"
 )
-
-char_vars_dx <- c(binary_vars_dx, continuous_vars_dx)
-
-# breath_and_sleep_test_sayy |>
-#   dplyr::mutate(
-#     dplyr::across(dplyr::all_of(binary_vars_dx), as.integer),
-#     gender = factor(gender, levels = c("ΓΥΝΑΙΚΑ", "ΑΝΔΡΑΣ", "ΑΛΛΟ"))
-#   ) |>
-#   dplyr::select(dplyr::all_of(char_vars_dx), gender) |>
-#   gtsummary::tbl_summary(
-#     by        = gender,
-#     missing   = "no",
-#     type      = purrr::map(binary_vars_dx, ~ "dichotomous") |> purrr::set_names(binary_vars_dx),
-#     value     = purrr::map(binary_vars_dx, ~ 1)             |> purrr::set_names(binary_vars_dx),
-#     statistic = list(gtsummary::all_continuous() ~ "{median} ({p25}, {p75})"),
-#     digits    = list(gtsummary::all_continuous() ~ 1)
-#   ) |>
-#   gtsummary::add_overall(last = TRUE) |>
-#   gtsummary::bold_labels()
-
-
-
-# generate_visit_table <- function(data, visit_number) {
-#   visit_data <- data |>
-#     dplyr::arrange(pat_id, visit_date) |>
-#     dplyr::group_by(pat_id) |>
-#     dplyr::mutate(visit_rank = dplyr::row_number()) |>
-#     dplyr::ungroup() |>
-#     dplyr::filter(visit_rank == visit_number)
-# 
-#   # Drop binary vars that are all-zero or all-NA in this visit slice
-#   valid_binary <- binary_vars_dx |>
-#     purrr::keep(~ {
-#       vals <- visit_data[[.x]]
-#       !all(is.na(vals)) && length(unique(stats::na.omit(vals))) > 1
-#     })
-# 
-#   visit_data |>
-#     dplyr::mutate(
-#       dplyr::across(dplyr::all_of(valid_binary), ~ factor(.x, levels = c(0, 1))),
-#       gender = factor(gender, levels = c("ΓΥΝΑΙΚΑ", "ΑΝΔΡΑΣ", "ΑΛΛΟ"))
-#     ) |>
-#     dplyr::select(dplyr::all_of(c(valid_binary, continuous_vars_dx)), gender) |>
-#     gtsummary::tbl_summary(
-#       by        = gender,
-#       missing   = "no",
-#       type      = purrr::map(valid_binary, ~ "dichotomous") |> purrr::set_names(valid_binary),
-#       value     = purrr::map(valid_binary, ~ "1")           |> purrr::set_names(valid_binary),
-#       statistic = list(gtsummary::all_continuous() ~ "{median} ({p25}, {p75})"),
-#       digits    = list(gtsummary::all_continuous() ~ 1)
-#     ) |>
-#     gtsummary::add_overall(last = TRUE) |>
-#     gtsummary::bold_labels()
-# }
-
-labels_df <- readr::read_csv("data/breath_and_sleep_test_labels.csv")
+labels_df <- readr::read_csv("data/mapping_breath_and_sleep_tests.csv")
 
 label_map <- labels_df |>
-  dplyr::select(legacy_name, measurement_name_en) |>
+  dplyr::select(legacy_column_name, english_name) |>
   tibble::deframe()
 
-generate_visit_table <- function(data, visit_number) {
-  visit_data <- data |>
-    dplyr::arrange(pat_id, visit_date) |>
-    dplyr::group_by(pat_id) |>
-    dplyr::mutate(visit_rank = dplyr::row_number()) |>
-    dplyr::ungroup() |>
-    dplyr::filter(visit_rank == visit_number)
+# Variables per category, derived from the CSV
+category_vars <- labels_df |>
+  dplyr::select(legacy_column_name, measurement_type) |>
+  dplyr::filter(legacy_column_name %in% names(breath_and_sleep_test_sayy)) |>
+  dplyr::group_by(measurement_type) |>
+  dplyr::summarise(vars = list(legacy_column_name), .groups = "drop") |>
+  tibble::deframe()
 
-  valid_binary <- binary_vars_dx |>
-    purrr::keep(~ {
-      vals <- visit_data[[.x]]
-      !all(is.na(vals)) && length(unique(stats::na.omit(vals))) > 1
-    })
-
-  all_vars <- c(valid_binary, continuous_vars_dx)
-
-  # Return column name itself if no mapping or mapping is NA
-  var_labels <- all_vars |>
-    purrr::map_chr(~ {
-      lbl <- label_map[.x]
-      if (is.na(lbl)) .x else lbl
-    }) |>
-    purrr::set_names(all_vars)
-
-  visit_data |>
-    dplyr::mutate(
-      dplyr::across(dplyr::all_of(valid_binary), ~ factor(.x, levels = c(0, 1))),
-      gender = factor(gender, levels = c("ΓΥΝΑΙΚΑ", "ΑΝΔΡΑΣ", "ΑΛΛΟ"))
-    ) |>
-    dplyr::select(dplyr::all_of(all_vars), gender) |>
-    gtsummary::tbl_summary(
-      by        = gender,
-      missing   = "no",
-      type      = purrr::map(valid_binary, ~ "dichotomous") |> purrr::set_names(valid_binary),
-      value     = purrr::map(valid_binary, ~ "1")           |> purrr::set_names(valid_binary),
-      statistic = list(gtsummary::all_continuous() ~ "{median} ({p25}, {p75})"),
-      digits    = list(gtsummary::all_continuous() ~ 1),
-      label     = as.list(var_labels)
-    ) |>
-    gtsummary::add_overall(last = TRUE) |>
-    gtsummary::bold_labels()
-}
-# Get max number of visits any patient has
+# Generate one table per visit number, per category
 max_visits <- breath_and_sleep_test_sayy |>
   dplyr::count(pat_id) |>
   dplyr::pull(n) |>
   max()
 
-# Generate one table per visit number
-visit_tables <- seq_len(max_visits) |>
-  purrr::map(~ generate_visit_table(breath_and_sleep_test_sayy, .x)) |>
+visit_tables <- purrr::map(seq_len(max_visits), \(visit_num) {
+  purrr::imap(category_vars, \(vars, category) {
+    generate_visit_table(breath_and_sleep_test_sayy, visit_num, vars = vars)
+  })
+}) |>
   purrr::set_names(paste0("visit_", seq_len(max_visits)))
+
+
+save_breath_and_sleep_tests(visit_tables, "results/breath_and_sleep_tests")

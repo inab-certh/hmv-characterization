@@ -61,3 +61,82 @@ save_gtsummary <- function(tbl, filename, path = ".") {
   openxlsx::saveWorkbook(wb, glue::glue("{base_path}.xlsx"), overwrite = TRUE)
   message(glue::glue("Saved: .html, .pdf, .xlsx in '{path}'"))
 }
+
+generate_visit_table <- function(data, visit_number, vars = NULL) {
+  visit_data <- data |>
+    dplyr::arrange(pat_id, visit_date) |>
+    dplyr::group_by(pat_id) |>
+    dplyr::mutate(visit_rank = dplyr::row_number()) |>
+    dplyr::ungroup() |>
+    dplyr::filter(visit_rank == visit_number)
+
+  # Subset binary and continuous vars to those requested
+  binary_pool     <- if (!is.null(vars)) intersect(binary_vars_dx, vars)     else binary_vars_dx
+  continuous_pool <- if (!is.null(vars)) intersect(continuous_vars_dx, vars) else continuous_vars_dx
+
+  valid_binary <- binary_pool |>
+    purrr::keep(~ {
+      vals <- visit_data[[.x]]
+      !all(is.na(vals)) && length(unique(stats::na.omit(vals))) > 1
+    })
+
+  all_vars <- c(valid_binary, continuous_pool)
+
+  var_labels <- all_vars |>
+    purrr::map_chr(~ {
+      lbl <- label_map[.x]
+      if (is.na(lbl)) .x else lbl
+    }) |>
+    purrr::set_names(all_vars)
+
+  visit_data |>
+    dplyr::mutate(
+      dplyr::across(dplyr::all_of(valid_binary), ~ factor(.x, levels = c(0, 1))),
+      gender = factor(gender, levels = c("ΓΥΝΑΙΚΑ", "ΑΝΔΡΑΣ", "ΑΛΛΟ"))
+    ) |>
+    dplyr::select(dplyr::all_of(all_vars), gender) |>
+    gtsummary::tbl_summary(
+      by        = gender,
+      missing   = "no",
+      type      = purrr::map(valid_binary, ~ "dichotomous") |> purrr::set_names(valid_binary),
+      value     = purrr::map(valid_binary, ~ "1")           |> purrr::set_names(valid_binary),
+      statistic = list(gtsummary::all_continuous() ~ "{median} ({p25}, {p75})"),
+      digits    = list(gtsummary::all_continuous() ~ 1),
+      label     = as.list(var_labels)
+    ) |>
+    gtsummary::add_overall(last = TRUE) |>
+    gtsummary::bold_labels()
+}
+
+
+save_breath_and_sleep_tests <- function(visit_tables, base_path = "results") {
+  
+  clean <- function(x) gsub("\\*\\*|__", "", x)
+  
+  save_single <- function(tbl, filepath) {
+    tbl |>
+      gtsummary::as_gt() |>
+      gt::gtsave(glue::glue("{filepath}.html"))
+    
+    tbl |>
+      gtsummary::as_tibble() |>
+      (\(df) purrr::set_names(df, make.unique(clean(names(df)))))() |>
+      dplyr::mutate(dplyr::across(dplyr::everything(), clean)) |>
+      openxlsx::write.xlsx(glue::glue("{filepath}.xlsx"), overwrite = TRUE)
+  }
+  
+  purrr::iwalk(visit_tables, \(category_tables, visit_name) {
+    visit_dir <- file.path(base_path, visit_name)
+    dir.create(visit_dir, recursive = TRUE, showWarnings = FALSE)
+    
+    purrr::iwalk(category_tables, \(tbl, category_name) {
+      filepath <- file.path(visit_dir, category_name)
+      tryCatch(
+        save_single(tbl, filepath),
+        error = \(e) message(glue::glue("Failed: {visit_name}/{category_name}: {e$message}"))
+      )
+    })
+    
+    message(glue::glue("Saved {visit_name} -> {visit_dir}"))
+  })
+}
